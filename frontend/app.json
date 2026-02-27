@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "Flight Tracker",
+    "slug": "flight-tracker",
+    "version": "1.0.0",
+    "scheme": "flight-tracker",
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#ffffff"
+        }
+      ]
+    ]
+  }
+}
