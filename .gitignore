@@ -2,3 +2,10 @@ node_modules/
 dist/
 .expo/
 .env
+.claude/
+.design-extract/
+*.mp4
+DESIGN-SYSTEM.md
+IMPLEMENTATION-PLAN-*.md
+ui-designer.md
+m

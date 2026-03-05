@@ -1,0 +1,49 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  searches SavedSearch[]
+
+  @@map("users")
+}
+
+model SavedSearch {
+  id                Int       @id @default(autoincrement())
+  userId            Int       @map("user_id")
+  tripType          String    @map("trip_type")
+  origin            String
+  destination       String
+  dateFrom          String    @map("date_from")
+  dateTo            String    @map("date_to")
+  minNights         Int?      @map("min_nights")
+  maxNights         Int?      @map("max_nights")
+  active            Boolean   @default(true)
+  lastCheckedAt     DateTime? @map("last_checked_at")
+  cheapestPrice     Float?    @map("cheapest_price")
+  latestResults     Json      @default("[]") @map("latest_results")
+  filters           Json      @default("{}") @map("filters")
+  availableAirlines Json      @default("[]") @map("available_airlines")
+  airlineLogos      Json      @default("{}") @map("airline_logos")
+  rawLegs           Json      @default("{\"outbound\":[],\"return\":[]}") @map("raw_legs")
+  priceHistory      Json      @default("[]") @map("price_history")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([active, dateTo])
+  @@index([userId])
+  @@map("saved_searches")
+}
