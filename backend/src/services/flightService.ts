@@ -3,6 +3,39 @@ import * as fs from "fs";
 import * as path from "path";
 
 const SERP_BASE = "https://serpapi.com/search.json";
+const COST_PER_CALL = 0.025;
+
+// ── API call tracker ──
+let apiCallLog: { type: string; detail: string; cost: number }[] = [];
+let apiCallCount = 0;
+
+function trackCall(type: string, detail: string) {
+  apiCallCount++;
+  apiCallLog.push({ type, detail, cost: COST_PER_CALL });
+  console.log(`  [SerpAPI #${apiCallCount}] ${type}: ${detail}  ($${COST_PER_CALL})`);
+}
+
+export function resetCallTracker() {
+  apiCallLog = [];
+  apiCallCount = 0;
+}
+
+export function printCallSummary(label: string) {
+  const totalCost = apiCallLog.length * COST_PER_CALL;
+  const rtCalls = apiCallLog.filter(c => c.type === "searchRoundTrip").length;
+  const returnCalls = apiCallLog.filter(c => c.type === "fetchReturnLeg").length;
+  const owCalls = apiCallLog.filter(c => c.type === "searchOneWay").length;
+
+  console.log("");
+  console.log(`  ┌─── API COST SUMMARY: ${label} ───`);
+  console.log(`  │  Total calls: ${apiCallLog.length}`);
+  if (rtCalls > 0) console.log(`  │    Round-trip searches: ${rtCalls}`);
+  if (returnCalls > 0) console.log(`  │    Return leg fetches:  ${returnCalls}`);
+  if (owCalls > 0) console.log(`  │    One-way searches:    ${owCalls}`);
+  console.log(`  │  Total cost: $${totalCost.toFixed(3)}`);
+  console.log(`  └──────────────────────────────────`);
+  console.log("");
+}
 
 // ── Debug helpers (temporary) ──
 const DEBUG_DIR = path.join(__dirname, "../../debug");
@@ -101,6 +134,98 @@ function generateDates(from: string, to: string): string[] {
     cur = addDays(cur, 1);
   }
   return dates;
+}
+
+/** Sample every Nth date from an array. interval=1 means no sampling. */
+function sampleDates(dates: string[], interval: number): string[] {
+  if (interval <= 1) return dates;
+  return dates.filter((_, i) => i % interval === 0);
+}
+
+/**
+ * Count the number of (outbound, return) date combos for given params.
+ * Pure math — no API calls. Same logic as fetchAndReduceCombos date-pair generation.
+ */
+export function countCombos(params: {
+  dateFrom: string;
+  dateTo: string;
+  minNights: number;
+  maxNights: number;
+}): number {
+  const { dateFrom, dateTo, minNights, maxNights } = params;
+  const outboundDates = generateDates(dateFrom, addDays(dateTo, -minNights));
+  let count = 0;
+  for (const out of outboundDates) {
+    const earliestReturn = addDays(out, minNights);
+    const latestReturn = addDays(out, maxNights);
+    const clampedLatest = latestReturn <= dateTo ? latestReturn : dateTo;
+    const returnCount = diffDays(earliestReturn, clampedLatest) + 1;
+    if (returnCount > 0) count += returnCount;
+  }
+  return count;
+}
+
+/**
+ * Select 3-4 sentinel date pairs spread across the search range.
+ * Picks indices at [0, 33%, 66%, last] for even coverage.
+ */
+export function selectSentinels(params: {
+  dateFrom: string;
+  dateTo: string;
+  minNights: number;
+  maxNights: number;
+}): { out: string; ret: string }[] {
+  const { dateFrom, dateTo, minNights, maxNights } = params;
+  const outboundDates = generateDates(dateFrom, addDays(dateTo, -minNights));
+  const allPairs: { out: string; ret: string }[] = [];
+
+  for (const out of outboundDates) {
+    const earliestReturn = addDays(out, minNights);
+    const latestReturn = addDays(out, maxNights);
+    const clampedLatest = latestReturn <= dateTo ? latestReturn : dateTo;
+    const returnDates = generateDates(earliestReturn, clampedLatest);
+    for (const ret of returnDates) {
+      allPairs.push({ out, ret });
+    }
+  }
+
+  if (allPairs.length <= 4) return allPairs;
+
+  const indices = [
+    0,
+    Math.floor(allPairs.length * 0.33),
+    Math.floor(allPairs.length * 0.66),
+    allPairs.length - 1,
+  ];
+  const unique = [...new Set(indices)];
+  return unique.map((i) => allPairs[i]);
+}
+
+/**
+ * Fetch prices for sentinel date pairs only (3-4 API calls).
+ * Used by cron to decide if a full scan is needed.
+ */
+export async function fetchSentinelPrices(
+  origin: string,
+  destination: string,
+  sentinels: { out: string; ret: string }[]
+): Promise<{ sentinelCheapest: number | null }> {
+  resetCallTracker();
+
+  const allResults = await pMap(
+    sentinels,
+    (pair) => searchRoundTrip(origin, destination, pair.out, pair.ret),
+    3
+  );
+
+  const allOptions = allResults.flat();
+  const cheapest =
+    allOptions.length > 0
+      ? Math.min(...allOptions.map((o) => o.price))
+      : null;
+
+  printCallSummary("SENTINEL CHECK");
+  return { sentinelCheapest: cheapest };
 }
 
 // ---------- filter helpers ----------
@@ -239,6 +364,7 @@ async function searchOneWay(
     api_key: process.env.SERPAPI_KEY!,
   });
 
+  trackCall("searchOneWay", `${origin}→${destination} ${date}`);
   const res = await fetch(`${SERP_BASE}?${params}`);
   if (!res.ok) {
     throw new Error(`SerpAPI error ${res.status}: ${await res.text()}`);
@@ -274,6 +400,7 @@ async function searchRoundTrip(
     api_key: process.env.SERPAPI_KEY!,
   });
 
+  trackCall("searchRoundTrip", `${origin}→${destination} ${outboundDate}→${returnDate}`);
   const res = await fetch(`${SERP_BASE}?${params}`);
   if (!res.ok) {
     throw new Error(`SerpAPI error ${res.status}: ${await res.text()}`);
@@ -327,6 +454,7 @@ export async function fetchReturnLeg(
     api_key: process.env.SERPAPI_KEY!,
   });
 
+  trackCall("fetchReturnLeg", `${origin}→${destination} ${outboundDate}→${returnDate}`);
   const res = await fetch(`${SERP_BASE}?${params}`);
   if (!res.ok) return null;
 
@@ -352,10 +480,12 @@ export async function fetchAndReduceCombos(
   params: SearchParams
 ): Promise<{
   combos: FlightCombo[];
+  unhydratedOptions: RoundTripRawOption[];
   availableAirlines: string[];
   airlineLogos: Record<string, string>;
-  allCombos: FlightCombo[];
+  allRawOptions: RoundTripRawOption[];
 }> {
+  resetCallTracker();
   const { origin, destination, dateFrom, dateTo, minNights, maxNights } = params;
 
   // Reset debug files for this new search
@@ -396,10 +526,10 @@ export async function fetchAndReduceCombos(
     outbound_price_on_leg: r.outbound.price,
   })));
 
-  // Take top 30 by price (NO airline filter) and fetch return legs for all 30
-  const top30 = filterAndSortRawOptions(rawRoundTrips, undefined, 30);
+  // Take top 10 cheapest
+  const top10 = filterAndSortRawOptions(rawRoundTrips, undefined, 10);
 
-  debugWrite("04_top30_before_return_fetch.json", top30.map((r, i) => ({
+  debugWrite("04_top10_before_return_fetch.json", top10.map((r, i) => ({
     index: i,
     outboundDate: r.outboundDate,
     returnDate: r.returnDate,
@@ -408,9 +538,14 @@ export async function fetchAndReduceCombos(
     outbound_airline: r.outbound.airline,
   })));
 
-  const allCombos = await buildCombosFromRawOptions(top30, origin, destination);
+  // Lazy return legs: only hydrate the top 4, leave remaining 6 unhydrated
+  const TOP_HYDRATE_COUNT = 4;
+  const toHydrate = top10.slice(0, TOP_HYDRATE_COUNT);
+  const unhydrated = top10.slice(TOP_HYDRATE_COUNT);
 
-  debugWrite("05_final_combos.json", allCombos.map((c, i) => ({
+  const hydratedCombos = await buildCombosFromRawOptions(toHydrate, origin, destination);
+
+  debugWrite("05_final_combos.json", hydratedCombos.map((c, i) => ({
     index: i,
     totalPrice: c.totalPrice,
     nights: c.nights,
@@ -430,15 +565,18 @@ export async function fetchAndReduceCombos(
     },
   })));
 
-  // Extract airlines and logos from ALL combo legs (outbound + return)
-  const allLegs = allCombos.flatMap((c) => [c.outbound, c.return]);
+  // Extract airlines and logos from hydrated combos + unhydrated outbound legs
+  const hydratedLegs = hydratedCombos.flatMap((c) => [c.outbound, c.return]);
+  const unhydratedLegs = unhydrated.map((o) => o.outbound);
+  const allLegs = [...hydratedLegs, ...unhydratedLegs];
   const availableAirlines = extractAirlines(allLegs);
   const airlineLogos = extractAirlineLogos(allLegs);
 
-  // Apply airline filter if present for display results (top 10)
-  const combos = filterCombosByAirline(allCombos, params.filters, 10);
+  // Apply airline filter for display results
+  const combos = filterCombosByAirline(hydratedCombos, params.filters, TOP_HYDRATE_COUNT);
 
-  return { combos, availableAirlines, airlineLogos, allCombos };
+  printCallSummary("FULL SEARCH (fetchAndReduceCombos)");
+  return { combos, unhydratedOptions: unhydrated, availableAirlines, airlineLogos, allRawOptions: top10 };
 }
 
 /** Build FlightCombo[] from raw options by fetching return leg details. */
@@ -530,18 +668,121 @@ export async function searchByParams(
   params: SearchParams
 ): Promise<{
   results: FlightCombo[];
+  unhydratedOptions: RoundTripRawOption[];
   cheapestPrice: number | null;
   availableAirlines: string[];
   airlineLogos: Record<string, string>;
-  allCombos: FlightCombo[];
+  allRawOptions: RoundTripRawOption[];
 }> {
-  const { combos, availableAirlines, airlineLogos, allCombos } =
+  const { combos, unhydratedOptions, availableAirlines, airlineLogos, allRawOptions } =
     await fetchAndReduceCombos(params);
   const cheapestPrice =
     combos.length > 0
       ? Math.min(...combos.map((r) => r.totalPrice))
       : null;
-  return { results: combos, cheapestPrice, availableAirlines, airlineLogos, allCombos };
+  return { results: combos, unhydratedOptions, cheapestPrice, availableAirlines, airlineLogos, allRawOptions };
+}
+
+// ---------- price-only search for cron (no return-leg fetching) ----------
+
+export async function fetchPriceOnly(
+  params: SearchParams & { sampleInterval?: number }
+): Promise<{
+  rawOptions: RoundTripRawOption[];
+  cheapestPrice: number | null;
+  availableAirlines: string[];
+  airlineLogos: Record<string, string>;
+}> {
+  resetCallTracker();
+  const { origin, destination, dateFrom, dateTo, minNights, maxNights, sampleInterval = 1 } = params;
+
+  // Generate date pairs with optional sampling on outbound dates
+  const allOutboundDates = generateDates(dateFrom, addDays(dateTo, -minNights));
+  const outboundDates = sampleDates(allOutboundDates, sampleInterval);
+  const datePairs: { out: string; ret: string }[] = [];
+  for (const out of outboundDates) {
+    const earliestReturn = addDays(out, minNights);
+    const latestReturn = addDays(out, maxNights);
+    const clampedLatest = latestReturn <= dateTo ? latestReturn : dateTo;
+    const returnDates = generateDates(earliestReturn, clampedLatest);
+    for (const ret of returnDates) {
+      datePairs.push({ out, ret });
+    }
+  }
+
+  const allResults = await pMap(
+    datePairs,
+    (pair) => searchRoundTrip(origin, destination, pair.out, pair.ret),
+    5
+  );
+
+  const rawRoundTrips = allResults.flat();
+  const top10 = filterAndSortRawOptions(rawRoundTrips, undefined, 10);
+
+  // Extract airlines and logos from outbound legs only (no return data)
+  const outboundLegs = top10.map((opt) => opt.outbound);
+  const availableAirlines = extractAirlines(outboundLegs);
+  const airlineLogos = extractAirlineLogos(outboundLegs);
+
+  const cheapestPrice = top10.length > 0 ? top10[0].price : null;
+
+  printCallSummary("CRON CHECK (fetchPriceOnly)");
+  return { rawOptions: top10, cheapestPrice, availableAirlines, airlineLogos };
+}
+
+// ---------- on-demand hydration of return legs ----------
+
+export async function hydrateReturnLegs(
+  rawOptions: RoundTripRawOption[],
+  origin: string,
+  destination: string,
+  filters?: SearchFilters,
+  limit = 10
+): Promise<{
+  combos: FlightCombo[];
+  availableAirlines: string[];
+  airlineLogos: Record<string, string>;
+}> {
+  resetCallTracker();
+  // Filter by outbound airline if requested, then take top N by price
+  const filtered = filterAndSortRawOptions(rawOptions, filters, limit);
+
+  const combos = await buildCombosFromRawOptions(filtered, origin, destination);
+
+  const allLegs = combos.flatMap((c) => [c.outbound, c.return]);
+  const availableAirlines = extractAirlines(allLegs);
+  const airlineLogos = extractAirlineLogos(allLegs);
+
+  printCallSummary("HYDRATION (hydrateReturnLegs)");
+  return { combos, availableAirlines, airlineLogos };
+}
+
+// ---------- one-way price-only for cron (with sampling) ----------
+
+export async function fetchOneWayPriceOnly(
+  params: OneWaySearchParams & { sampleInterval?: number }
+): Promise<{
+  rawLegs: FlightLeg[];
+  cheapestPrice: number | null;
+  availableAirlines: string[];
+  airlineLogos: Record<string, string>;
+}> {
+  const { origin, destination, dateFrom, dateTo, sampleInterval = 1 } = params;
+
+  const allDates = generateDates(dateFrom, dateTo);
+  const dates = sampleDates(allDates, sampleInterval);
+
+  const allResults = await Promise.all(
+    dates.map((d) => searchOneWay(origin, destination, d))
+  );
+
+  const rawLegs = allResults.flat();
+  const availableAirlines = extractAirlines(rawLegs);
+  const airlineLogos = extractAirlineLogos(rawLegs);
+  const results = reduceOneWayFromLegs(rawLegs);
+  const cheapestPrice = results.length > 0 ? Math.min(...results.map((r) => r.price)) : null;
+
+  return { rawLegs, cheapestPrice, availableAirlines, airlineLogos };
 }
 
 export async function searchOneWayByParams(
@@ -569,6 +810,7 @@ export async function fetchAndReduceOneWay(
   airlineLogos: Record<string, string>;
   rawLegs: FlightLeg[];
 }> {
+  resetCallTracker();
   const { origin, destination, dateFrom, dateTo } = params;
 
   const dates = generateDates(dateFrom, dateTo);
@@ -582,6 +824,7 @@ export async function fetchAndReduceOneWay(
   const airlineLogos = extractAirlineLogos(rawLegs);
   const results = reduceOneWayFromLegs(rawLegs, params.filters);
 
+  printCallSummary("ONE-WAY SEARCH (fetchAndReduceOneWay)");
   return { results, availableAirlines, airlineLogos, rawLegs };
 }
 

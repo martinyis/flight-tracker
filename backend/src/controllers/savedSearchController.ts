@@ -16,7 +16,11 @@ export async function createSearch(
     res.status(201).json({ search, resultsError });
   } catch (err: any) {
     if (err.status === 400) {
-      res.status(400).json({ error: err.message });
+      res.status(400).json({ error: err.message, comboCount: err.comboCount });
+      return;
+    }
+    if (err.status === 429) {
+      res.status(429).json({ error: err.message, code: err.code });
       return;
     }
     next(err);
@@ -93,7 +97,15 @@ export async function refreshSearch(
       return;
     }
     res.json(search);
-  } catch (err) {
+  } catch (err: any) {
+    if (err.status === 402) {
+      res.status(402).json({ error: err.message, code: err.code, trackingFee: err.trackingFee });
+      return;
+    }
+    if (err.status === 429) {
+      res.status(429).json({ error: err.message, code: err.code });
+      return;
+    }
     next(err);
   }
 }
@@ -147,6 +159,26 @@ export async function toggleSearch(
   }
 }
 
+export async function hydrateSearch(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const search = await savedSearchService.hydrateSearch(
+      req.params.id as string,
+      req.userId!
+    );
+    if (!search) {
+      res.status(404).json({ error: "Search not found" });
+      return;
+    }
+    res.json(search);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function getBookingUrl(
   req: AuthRequest,
   res: Response,
@@ -173,6 +205,60 @@ export async function getBookingUrl(
     });
     res.json({ url });
   } catch (err) {
+    next(err);
+  }
+}
+
+export async function activateTracking(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const result = await savedSearchService.activateTracking(
+      req.params.id as string,
+      req.userId!
+    );
+    if (!result) {
+      res.status(404).json({ error: "Search not found" });
+      return;
+    }
+    res.json(result);
+  } catch (err: any) {
+    if (err.status) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    next(err);
+  }
+}
+
+export async function hydrateOne(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { optionIndex } = req.body;
+    if (optionIndex == null || typeof optionIndex !== "number") {
+      res.status(400).json({ error: "optionIndex (number) is required" });
+      return;
+    }
+    const result = await savedSearchService.hydrateOneOption(
+      req.params.id as string,
+      req.userId!,
+      optionIndex
+    );
+    if (!result) {
+      res.status(404).json({ error: "Search or flight not found" });
+      return;
+    }
+    res.json(result);
+  } catch (err: any) {
+    if (err.status) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
     next(err);
   }
 }

@@ -59,3 +59,57 @@ export async function login(
     next(err);
   }
 }
+
+export async function appleLogin(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { identityToken } = req.body;
+
+    if (!identityToken) {
+      res.status(400).json({ error: "Apple identity token is required" });
+      return;
+    }
+
+    const { user, token } = await authService.appleAuth(identityToken);
+    res.json({
+      token,
+      user: { id: user.id, email: user.email },
+    });
+  } catch (err: any) {
+    if (err.statusCode) {
+      res.status(err.statusCode).json({ error: err.message });
+      return;
+    }
+    next(err);
+  }
+}
+
+export async function googleLogin(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const { idToken } = req.body;
+
+    if (!idToken) {
+      res.status(400).json({ error: "Google ID token is required" });
+      return;
+    }
+
+    const { user, token } = await authService.googleAuth(idToken);
+    res.json({
+      token,
+      user: { id: user.id, email: user.email },
+    });
+  } catch (err: any) {
+    if (err.statusCode) {
+      res.status(err.statusCode).json({ error: err.message });
+      return;
+    }
+    next(err);
+  }
+}

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -58,6 +58,38 @@ function toLabel(date: Date): string {
   });
 }
 
+/** Count date combos (pure math, same logic as backend). */
+function countCombos(dateFrom: string, dateTo: string, minN: number, maxN: number): number {
+  const dates: string[] = [];
+  const from = new Date(dateFrom + "T00:00:00Z");
+  const to = new Date(dateTo + "T00:00:00Z");
+  const lastOut = new Date(to.getTime() - minN * 86_400_000);
+  let cur = new Date(from);
+  while (cur <= lastOut) {
+    dates.push(cur.toISOString().slice(0, 10));
+    cur = new Date(cur.getTime() + 86_400_000);
+  }
+  let count = 0;
+  for (const out of dates) {
+    const outMs = new Date(out + "T00:00:00Z").getTime();
+    const earliest = new Date(outMs + minN * 86_400_000);
+    const latest = new Date(Math.min(outMs + maxN * 86_400_000, to.getTime()));
+    const diff = Math.round((latest.getTime() - earliest.getTime()) / 86_400_000) + 1;
+    if (diff > 0) count += diff;
+  }
+  return count;
+}
+
+function getTrackingFee(combos: number): number {
+  if (combos <= 15) return 1.99;
+  if (combos <= 40) return 3.99;
+  if (combos <= 80) return 6.99;
+  if (combos <= 130) return 9.99;
+  return 14.99;
+}
+
+const COMBO_HARD_CAP = 200;
+
 type PickerTarget = "from" | "to";
 
 const SCREEN_HEIGHT = Dimensions.get("window").height;
@@ -76,6 +108,19 @@ export default function AddSearchScreen() {
     maxNights: "14",
   });
   const [error, setError] = useState("");
+
+  // Live combo counter
+  const comboInfo = useMemo(() => {
+    if (formData.tripType === "roundtrip") {
+      const minN = parseInt(formData.minNights, 10) || 1;
+      const maxN = parseInt(formData.maxNights, 10) || 14;
+      const combos = countCombos(toYMD(formData.dateFrom), toYMD(formData.dateTo), minN, maxN);
+      return { count: combos, fee: getTrackingFee(combos), overLimit: combos > COMBO_HARD_CAP };
+    }
+    const diffMs = formData.dateTo.getTime() - formData.dateFrom.getTime();
+    const combos = Math.floor(diffMs / 86_400_000) + 1;
+    return { count: combos, fee: getTrackingFee(combos), overLimit: combos > COMBO_HARD_CAP };
+  }, [formData.tripType, formData.dateFrom, formData.dateTo, formData.minNights, formData.maxNights]);
 
   // Date picker state
   const [activePicker, setActivePicker] = useState<PickerTarget | null>(null);
@@ -211,7 +256,15 @@ export default function AddSearchScreen() {
       const saved = res.data.search;
       router.replace(`/search/${saved.id}`);
     } catch (e: any) {
-      setError(e.response?.data?.error ?? e.message);
+      const status = e.response?.status;
+      const code = e.response?.data?.code;
+      if (status === 429 && code === "DAILY_LIMIT") {
+        setError("You've reached your daily search limit (3/day). Try again tomorrow.");
+      } else if (status === 429) {
+        setError("You recently searched for this exact route. Try different dates.");
+      } else {
+        setError(e.response?.data?.error ?? e.message);
+      }
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setStep("form");
     }
@@ -436,6 +489,18 @@ export default function AddSearchScreen() {
             </>
           )}
 
+          {/* Combo counter */}
+          {comboInfo.count > 0 && (
+            <View style={[styles.comboInfoWrap, comboInfo.overLimit && styles.comboInfoOver]}>
+              <Text style={[styles.comboInfoText, comboInfo.overLimit && styles.comboInfoTextOver]}>
+                {comboInfo.count} date combinations
+                {comboInfo.overLimit
+                  ? ` (max ${COMBO_HARD_CAP})`
+                  : ` · Tracking: $${comboInfo.fee.toFixed(2)}`}
+              </Text>
+            </View>
+          )}
+
           {/* Error */}
           {error ? (
             <View style={styles.errorWrap}>
@@ -448,7 +513,7 @@ export default function AddSearchScreen() {
             <AppButton
               label="Search Flights"
               onPress={handleSearch}
-              disabled={!isValid}
+              disabled={!isValid || comboInfo.overLimit}
             />
           </View>
 
@@ -786,6 +851,25 @@ const styles = StyleSheet.create({
   },
 
   // Error
+  comboInfoWrap: {
+    marginTop: 12,
+    backgroundColor: "#F0F6FF",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignItems: "center",
+  },
+  comboInfoOver: {
+    backgroundColor: "#FEF2F2",
+  },
+  comboInfoText: {
+    fontFamily: fonts.regular,
+    color: "#64748B",
+    fontSize: 13,
+  },
+  comboInfoTextOver: {
+    color: "#DC2626",
+  },
   errorWrap: {
     marginTop: 16,
     backgroundColor: "#FEF2F2",

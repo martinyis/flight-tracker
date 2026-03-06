@@ -55,9 +55,11 @@ interface FlightLeg {
 
 interface Combo {
   outbound: FlightLeg;
-  return: FlightLeg;
+  return?: FlightLeg;
   totalPrice: number;
   nights: number;
+  /** Present on non-hydrated cron data (RoundTripRawOption format) */
+  price?: number;
 }
 
 interface SearchFilters {
@@ -80,6 +82,9 @@ interface SavedSearch {
   filters: SearchFilters;
   availableAirlines: string[];
   airlineLogos?: Record<string, string>;
+  trackingPaid?: boolean;
+  trackingFee?: number;
+  comboCount?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -298,7 +303,7 @@ function CheckIcon({ size = 18, color = "#FFFFFF" }: { size?: number; color?: st
 // Sticky header constants
 // ---------------------------------------------------------------------------
 
-const AUTO_REFRESH_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+const AUTO_REFRESH_THRESHOLD_MS = 8 * 60 * 60 * 1000; // 8 hours
 const STICKY_HEADER_HEIGHT = 56;
 // Scroll range over which the header fades/slides in (px)
 const STICKY_FADE_RANGE = 40;
@@ -397,11 +402,29 @@ export default function SearchDetailScreen() {
       const data = res.data as SavedSearch;
       setSearch(data);
 
-      // Auto-refresh if data is stale (>5 min since last check)
-      if (data.lastCheckedAt) {
+      // Check if round-trip data needs return-leg hydration (cron data)
+      const isRoundTrip = data.tripType === "roundtrip";
+      const hasResults = Array.isArray(data.latestResults) && data.latestResults.length > 0;
+      const needsHydration = isRoundTrip && hasResults &&
+        !('return' in (data.latestResults[0] as any));
+
+      if (data.lastCheckedAt && data.trackingPaid) {
         const age = Date.now() - new Date(data.lastCheckedAt).getTime();
-        if (age > AUTO_REFRESH_THRESHOLD_MS) {
-          // Show cached data immediately, then refresh in background
+        const isStale = age > AUTO_REFRESH_THRESHOLD_MS;
+
+        if (needsHydration && !isStale) {
+          // Data is recent but needs hydration — hydrate only (no full refresh)
+          setRefreshing(true);
+          try {
+            const hydrateRes = await api.post(`/search/${id}/hydrate`);
+            setSearch(hydrateRes.data);
+          } catch {
+            // Silently fail — user still sees partial data with outbound + price
+          } finally {
+            setRefreshing(false);
+          }
+        } else if (isStale) {
+          // Data is stale — do a full refresh (returns hydrated data)
           setRefreshing(true);
           const cleanupPhases = startLoadingPhases();
           try {
@@ -416,7 +439,19 @@ export default function SearchDetailScreen() {
             cleanupPhases();
           }
         }
+      } else if (needsHydration && data.trackingPaid) {
+        // No lastCheckedAt but needs hydration (edge case)
+        setRefreshing(true);
+        try {
+          const hydrateRes = await api.post(`/search/${id}/hydrate`);
+          setSearch(hydrateRes.data);
+        } catch {
+          // Silently fail
+        } finally {
+          setRefreshing(false);
+        }
       }
+      // If !trackingPaid: show cached snapshot, no auto-refresh
     } catch {
       Alert.alert("Error", "Failed to load search details");
     } finally {
@@ -453,12 +488,61 @@ export default function SearchDetailScreen() {
       const res = await api.post(`/search/${id}/refresh`);
       setSearch(res.data);
       startCooldown();
-    } catch {
-      Alert.alert("Error", "Failed to update search results");
+    } catch (err: any) {
+      const status = err.response?.status;
+      if (status === 402) {
+        Alert.alert(
+          "Tracking Required",
+          "Activate price tracking to refresh prices.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Activate", onPress: handleActivateTracking },
+          ]
+        );
+      } else if (status === 429) {
+        Alert.alert("Too Soon", err.response?.data?.error ?? "Please wait before refreshing again.");
+      } else {
+        Alert.alert("Error", "Failed to update search results");
+      }
     } finally {
       setRefreshing(false);
       setRefreshPhase(0);
       cleanupPhases();
+    }
+  };
+
+  const handleActivateTracking = async () => {
+    try {
+      const res = await api.post(`/search/${id}/activate-tracking`);
+      setSearch((prev) =>
+        prev ? { ...prev, trackingPaid: true, active: true } : prev
+      );
+      Alert.alert(
+        "Tracking Activated",
+        "Price monitoring is now active. We'll check for price changes automatically."
+      );
+    } catch (err: any) {
+      Alert.alert("Error", err.response?.data?.error ?? "Failed to activate tracking");
+    }
+  };
+
+  // Tap-to-hydrate: fetch return leg for a single unhydrated combo
+  const [hydratingIndex, setHydratingIndex] = useState(-1);
+
+  const handleHydrateOne = async (optionIndex: number) => {
+    setHydratingIndex(optionIndex);
+    try {
+      const res = await api.post(`/search/${id}/hydrate-one`, { optionIndex });
+      setSearch((prev) => {
+        if (!prev) return prev;
+        const updated = [...prev.latestResults];
+        updated[optionIndex] = res.data.combo;
+        return { ...prev, latestResults: updated };
+      });
+    } catch {
+      Alert.alert("Error", "Failed to load return flight details");
+    } finally {
+      setHydratingIndex(-1);
     }
   };
 
@@ -530,6 +614,8 @@ export default function SearchDetailScreen() {
     let bridgeSub: string | null = null;
     let bridgeIcon: React.ReactNode;
 
+    const isUnpaid = !search.trackingPaid;
+
     if (refreshing) {
       bridgeLabel =
         refreshPhase <= 1
@@ -539,6 +625,12 @@ export default function SearchDetailScreen() {
           : "Almost done...";
       bridgeSub = "This usually takes a few seconds";
       bridgeIcon = <ActivityIndicator size="small" color="#3B82F6" />;
+    } else if (isUnpaid && !isFirstTime) {
+      bridgeLabel = "Activate Price Tracking";
+      bridgeSub = search.trackingFee != null
+        ? `$${search.trackingFee.toFixed(2)} one-time`
+        : "Get automatic price updates";
+      bridgeIcon = <RefreshCycleIcon size={16} color="#F59E0B" />;
     } else if (isCoolingDown) {
       bridgeLabel = "Prices up to date";
       bridgeSub = `Check again in ${formatCooldown(cooldownLeft)}`;
@@ -646,8 +738,8 @@ export default function SearchDetailScreen() {
           refreshing && styles.bridgeBarLoading,
           pressed && !isDisabled && styles.bridgeBarPressed,
         ]}
-        onPress={handleRefresh}
-        disabled={isDisabled}
+        onPress={isUnpaid && !isFirstTime ? handleActivateTracking : handleRefresh}
+        disabled={isDisabled && !isUnpaid}
       >
         <View style={styles.bridgeBarInner}>
           <View style={styles.bridgeBarLeft}>
@@ -952,6 +1044,8 @@ export default function SearchDetailScreen() {
                       setExpandedIndex((prev) => (prev === index ? -1 : index))
                     }
                     airlineLogos={search.airlineLogos}
+                    onHydrate={handleHydrateOne}
+                    isHydrating={hydratingIndex === index}
                   />
                 ))}
           </FloatingLayersContainer>

@@ -4,13 +4,29 @@
     "slug": "flight-tracker",
     "version": "1.0.0",
     "scheme": "flight-tracker",
+    "icon": "./src/assets/images/this-is-way-better---the-plane-is-there--the-arc-w.png",
     "platforms": [
       "ios",
       "android"
     ],
+    "ios": {
+      "bundleIdentifier": "com.martinyis.flighttracker",
+      "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "flight-tracker",
+              "com.googleusercontent.apps.949286619491-de0rldlh2qoljftscfdb08sk52h6gf6e"
+            ]
+          }
+        ]
+      },
+      "appleTeamId": "UG565K24C7"
+    },
     "plugins": [
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      "expo-apple-authentication"
     ]
   }
 }

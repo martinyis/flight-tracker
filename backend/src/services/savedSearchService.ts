@@ -6,8 +6,10 @@ import {
 } from "../types/search";
 import type { TypedSavedSearch } from "../types/search";
 import {
+  countCombos,
   searchByParams,
   searchOneWayByParams,
+  hydrateReturnLegs,
   filterAndSortRawOptions,
   buildCombosFromRawOptions,
   filterCombosByAirline,
@@ -16,10 +18,24 @@ import {
   FlightCombo,
   FlightLeg,
 } from "./flightService";
+import { computeNextCheckAt } from "../workers/priceCheckWorker";
 
 function parseId(value: string): number | null {
   const n = parseInt(value, 10);
   return Number.isNaN(n) ? null : n;
+}
+
+// ---------------------------------------------------------------------------
+// Tracking fee helper
+// ---------------------------------------------------------------------------
+
+/** Tiered tracking fee based on combo count. */
+export function computeTrackingFee(comboCount: number): number {
+  if (comboCount <= 15) return 1.99;
+  if (comboCount <= 40) return 3.99;
+  if (comboCount <= 80) return 6.99;
+  if (comboCount <= 130) return 9.99;
+  return 14.99;
 }
 
 // ---------------------------------------------------------------------------
@@ -89,16 +105,63 @@ export async function createSavedSearch(
     }
   }
 
-  const diffMs = new Date(dateTo).getTime() - new Date(dateFrom).getTime();
-  const diffDays = diffMs / 86_400_000;
-  if (diffDays > 30) {
-    throw Object.assign(new Error("Date range cannot exceed 30 days"), { status: 400 });
+  // Combo count validation (replaces old 30-day limit)
+  const COMBO_HARD_CAP = 200;
+  let comboCount: number;
+  if (tripType === "roundtrip") {
+    comboCount = countCombos({ dateFrom, dateTo, minNights: minNights!, maxNights: maxNights! });
+  } else {
+    const diffMs = new Date(dateTo).getTime() - new Date(dateFrom).getTime();
+    comboCount = Math.floor(diffMs / 86_400_000) + 1;
+  }
+  if (comboCount > COMBO_HARD_CAP) {
+    throw Object.assign(
+      new Error(`Too many combinations (${comboCount}). Maximum is ${COMBO_HARD_CAP}. Narrow your date range or nights.`),
+      { status: 400, comboCount }
+    );
   }
 
   const uid = parseId(userId);
   if (uid == null) {
     throw Object.assign(new Error("Invalid user"), { status: 400 });
   }
+
+  // Anti-gaming: 24h dedup — return existing search if identical params created recently
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 3600_000);
+  const existingDup = await prisma.savedSearch.findFirst({
+    where: {
+      userId: uid,
+      tripType,
+      origin: origin.toUpperCase(),
+      destination: destination.toUpperCase(),
+      dateFrom,
+      dateTo,
+      ...(tripType === "roundtrip" && {
+        minNights: Number(minNights),
+        maxNights: Number(maxNights),
+      }),
+      createdAt: { gte: twentyFourHoursAgo },
+    },
+  });
+  if (existingDup) {
+    return { search: existingDup as unknown as TypedSavedSearch, resultsError: undefined };
+  }
+
+  // Anti-gaming: 3 free searches per day
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const todayCount = await prisma.savedSearch.count({
+    where: { userId: uid, createdAt: { gte: todayStart } },
+  });
+  const FREE_SEARCHES_PER_DAY = 3;
+  if (todayCount >= FREE_SEARCHES_PER_DAY) {
+    throw Object.assign(
+      new Error(`Daily search limit reached (${FREE_SEARCHES_PER_DAY}/day). Try again tomorrow.`),
+      { status: 429, code: "DAILY_LIMIT" }
+    );
+  }
+
+  const trackingFee = computeTrackingFee(comboCount);
 
   let search = await prisma.savedSearch.create({
     data: {
@@ -108,6 +171,10 @@ export async function createSavedSearch(
       destination: destination.toUpperCase(),
       dateFrom,
       dateTo,
+      comboCount,
+      trackingFee,
+      trackingPaid: false,
+      active: false, // Inactive until tracking is paid
       ...(tripType === "roundtrip" && {
         minNights: Number(minNights),
         maxNights: Number(maxNights),
@@ -135,11 +202,12 @@ export async function createSavedSearch(
           availableAirlines: availableAirlines as any,
           airlineLogos: airlineLogos as any,
           lastCheckedAt: new Date(),
+          nextCheckAt: computeNextCheckAt(search.dateFrom),
           priceHistory: appendPriceHistory([], cheapestPrice) as any,
         },
       });
     } else {
-      const { results, cheapestPrice, availableAirlines, airlineLogos, allCombos } =
+      const { results, unhydratedOptions, cheapestPrice, availableAirlines, airlineLogos, allRawOptions } =
         await searchByParams({
           origin: search.origin,
           destination: search.destination,
@@ -152,19 +220,20 @@ export async function createSavedSearch(
       search = await prisma.savedSearch.update({
         where: { id: search.id },
         data: {
-          rawLegs: allCombos as any,
-          latestResults: results as any,
+          rawLegs: allRawOptions as any,
+          latestResults: [...results, ...unhydratedOptions] as any,
           cheapestPrice,
           availableAirlines: availableAirlines as any,
           airlineLogos: airlineLogos as any,
           lastCheckedAt: new Date(),
+          nextCheckAt: computeNextCheckAt(search.dateFrom),
           priceHistory: appendPriceHistory([], cheapestPrice) as any,
         },
       });
     }
   } catch {
     resultsError =
-      "Search saved, but initial price check failed. Results will appear within 4 hours.";
+      "Search saved, but initial price check failed. Results will appear on next cron run.";
   }
 
   return { search: search as unknown as TypedSavedSearch, resultsError };
@@ -208,6 +277,9 @@ export async function getUserSearches(userId: string) {
       active: s.active,
       lastCheckedAt: s.lastCheckedAt,
       cheapestPrice: s.cheapestPrice,
+      trackingPaid: s.trackingPaid,
+      trackingFee: s.trackingFee,
+      comboCount: s.comboCount,
       createdAt: s.createdAt,
       resultCount: results.length,
       airlineLogos: topLogos,
@@ -307,7 +379,11 @@ export async function toggleSearchActive(id: string, userId: string) {
 
   const updated = await prisma.savedSearch.update({
     where: { id: search.id },
-    data: { active: !search.active },
+    data: {
+      active: !search.active,
+      // When re-activating, schedule immediate check on next cron run
+      ...(!search.active && { nextCheckAt: new Date() }),
+    },
     omit: { latestResults: true, rawLegs: true },
   });
   return updated;
@@ -330,6 +406,27 @@ export async function refreshSearch(
     where: { id: searchId, userId: uid },
   });
   if (!search) return null;
+
+  // Gate: unpaid searches cannot be refreshed
+  if (!search.trackingPaid) {
+    throw Object.assign(
+      new Error("Tracking not activated. Pay the tracking fee to enable price monitoring."),
+      { status: 402, code: "PAYMENT_REQUIRED", trackingFee: search.trackingFee }
+    );
+  }
+
+  // 8-hour minimum refresh interval
+  const REFRESH_MIN_INTERVAL_MS = 8 * 3600_000;
+  if (search.lastCheckedAt) {
+    const age = Date.now() - new Date(search.lastCheckedAt).getTime();
+    if (age < REFRESH_MIN_INTERVAL_MS) {
+      throw Object.assign(
+        new Error("Data is still fresh. Next refresh available in " +
+          Math.ceil((REFRESH_MIN_INTERVAL_MS - age) / 3600_000) + " hours."),
+        { status: 429, code: "TOO_SOON" }
+      );
+    }
+  }
 
   const filters = resetFilter ? undefined : (search.filters as SearchFilters);
   const existingHistory = (search.priceHistory ?? []) as unknown as PriceHistoryEntry[];
@@ -360,7 +457,7 @@ export async function refreshSearch(
     });
     return updated;
   } else {
-    const { results, cheapestPrice, availableAirlines, airlineLogos, allCombos } =
+    const { results, unhydratedOptions, cheapestPrice, availableAirlines, airlineLogos, allRawOptions } =
       await searchByParams({
         origin: search.origin,
         destination: search.destination,
@@ -374,8 +471,8 @@ export async function refreshSearch(
     const updated = await prisma.savedSearch.update({
       where: { id: search.id },
       data: {
-        rawLegs: allCombos as any,
-        latestResults: results as any,
+        rawLegs: allRawOptions as any,
+        latestResults: [...results, ...unhydratedOptions] as any,
         cheapestPrice,
         availableAirlines: availableAirlines as any,
         airlineLogos: airlineLogos as any,
@@ -439,14 +536,10 @@ export async function updateFilters(
       results = filtered.results;
       cheapestPrice = filtered.cheapestPrice;
     } else if (isLegacyRoundTripRawLegs(raw)) {
-      // LEGACY FORMAT: fall back to old behavior; next refresh will migrate
-      const top = filterAndSortRawOptions(raw, filters, 20);
-      const allCombos = await buildCombosFromRawOptions(top, search.origin, search.destination);
-      results = filterCombosByAirline(allCombos, filters, 10);
-      cheapestPrice =
-        results.length > 0
-          ? Math.min(...(results as FlightCombo[]).map((r) => r.totalPrice))
-          : null;
+      // RAW OPTIONS FORMAT (from cron): filter by outbound airline, no API calls
+      const filtered = filterAndSortRawOptions(raw, filters, 10);
+      results = filtered;
+      cheapestPrice = filtered.length > 0 ? filtered[0].price : null;
     } else {
       // Empty or unknown format — return empty
       results = [];
@@ -464,4 +557,181 @@ export async function updateFilters(
     omit: { rawLegs: true },
   });
   return updated;
+}
+
+// ---------------------------------------------------------------------------
+// Hydrate — fetch return-leg details for cron data (RoundTripRawOption[])
+// ---------------------------------------------------------------------------
+
+export async function hydrateSearch(id: string, userId: string) {
+  const searchId = parseId(id);
+  const uid = parseId(userId);
+  if (searchId == null || uid == null) return null;
+
+  const search = await prisma.savedSearch.findFirst({
+    where: { id: searchId, userId: uid },
+  });
+  if (!search) return null;
+
+  const raw = search.rawLegs as unknown;
+
+  // Already hydrated (FlightCombo[]) — return as-is
+  if (isComboRawLegs(raw)) {
+    const { rawLegs: _omit, ...rest } = search;
+    return rest;
+  }
+
+  // Not in RoundTripRawOption[] format — nothing to hydrate
+  if (!isLegacyRoundTripRawLegs(raw)) {
+    const { rawLegs: _omit, ...rest } = search;
+    return rest;
+  }
+
+  // Hydrate: fetch return legs for top 10 options
+  const searchFilters = search.filters as SearchFilters;
+  const { combos, availableAirlines, airlineLogos } = await hydrateReturnLegs(
+    raw,
+    search.origin,
+    search.destination,
+    searchFilters,
+    10
+  );
+
+  const cheapestPrice = combos.length > 0
+    ? Math.min(...combos.map((c) => c.totalPrice))
+    : null;
+
+  const updated = await prisma.savedSearch.update({
+    where: { id: search.id },
+    data: {
+      rawLegs: combos as any,
+      latestResults: combos as any,
+      cheapestPrice,
+      availableAirlines: availableAirlines as any,
+      airlineLogos: airlineLogos as any,
+    },
+    omit: { rawLegs: true },
+  });
+  return updated;
+}
+
+// ---------------------------------------------------------------------------
+// Activate tracking (simulated payment for now)
+// ---------------------------------------------------------------------------
+
+export async function activateTracking(id: string, userId: string) {
+  const searchId = parseId(id);
+  const uid = parseId(userId);
+  if (searchId == null || uid == null) return null;
+
+  const search = await prisma.savedSearch.findFirst({
+    where: { id: searchId, userId: uid },
+  });
+  if (!search) return null;
+
+  if (search.trackingPaid) {
+    throw Object.assign(new Error("Tracking already activated"), { status: 400 });
+  }
+
+  // Simulated payment — always succeeds. Replace with real IAP later.
+  const fee = search.trackingFee ?? 0;
+
+  await prisma.payment.create({
+    data: {
+      userId: uid,
+      searchId: search.id,
+      amount: fee,
+      status: "completed",
+    },
+  });
+
+  // Build initial sentinels for round-trip searches
+  let sentinels: { out: string; ret: string }[] = [];
+  if (search.tripType === "roundtrip" && search.minNights != null && search.maxNights != null) {
+    const { selectSentinels } = await import("./flightService");
+    sentinels = selectSentinels({
+      dateFrom: search.dateFrom,
+      dateTo: search.dateTo,
+      minNights: search.minNights,
+      maxNights: search.maxNights,
+    });
+  }
+
+  const updated = await prisma.savedSearch.update({
+    where: { id: search.id },
+    data: {
+      trackingPaid: true,
+      trackingPaidAt: new Date(),
+      active: true,
+      nextCheckAt: computeNextCheckAt(search.dateFrom),
+      sentinelPairs: sentinels as any,
+    },
+    omit: { rawLegs: true },
+  });
+
+  return { search: updated, fee };
+}
+
+// ---------------------------------------------------------------------------
+// Hydrate one option (single return leg on-demand)
+// ---------------------------------------------------------------------------
+
+export async function hydrateOneOption(
+  id: string,
+  userId: string,
+  optionIndex: number
+) {
+  const searchId = parseId(id);
+  const uid = parseId(userId);
+  if (searchId == null || uid == null) return null;
+
+  const search = await prisma.savedSearch.findFirst({
+    where: { id: searchId, userId: uid },
+  });
+  if (!search) return null;
+
+  const latestResults = search.latestResults as any[];
+  if (optionIndex < 0 || optionIndex >= latestResults.length) {
+    throw Object.assign(new Error("Invalid option index"), { status: 400 });
+  }
+
+  const option = latestResults[optionIndex];
+
+  // Already hydrated?
+  if ("return" in option && option.return != null) {
+    return { combo: option, index: optionIndex };
+  }
+
+  if (!option.departure_token) {
+    throw Object.assign(new Error("Cannot hydrate: no departure_token"), { status: 400 });
+  }
+
+  const { fetchReturnLeg } = await import("./flightService");
+  const returnLeg = await fetchReturnLeg(
+    option.departure_token,
+    search.origin,
+    search.destination,
+    option.outboundDate,
+    option.returnDate
+  );
+
+  if (!returnLeg) {
+    throw Object.assign(new Error("Return flight not available"), { status: 404 });
+  }
+
+  const combo = {
+    outbound: option.outbound,
+    return: returnLeg,
+    totalPrice: returnLeg.price ?? option.price,
+    nights: option.nights,
+  };
+
+  // Persist hydrated combo in latestResults
+  latestResults[optionIndex] = combo;
+  await prisma.savedSearch.update({
+    where: { id: search.id },
+    data: { latestResults: latestResults as any },
+  });
+
+  return { combo, index: optionIndex };
 }

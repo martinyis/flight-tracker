@@ -21,6 +21,8 @@ import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
 import { useAuth } from "../src/context/AuthContext";
+import { useGoogleAuth } from "../src/hooks/useGoogleAuth";
+import { useAppleAuth } from "../src/hooks/useAppleAuth";
 import { fonts } from "../src/utils/fonts";
 import LogoHero from "../src/components/LogoHero";
 
@@ -52,13 +54,52 @@ function GoogleIcon() {
 // ---------------------------------------------------------------------------
 
 export default function LoginScreen() {
-  const { login } = useAuth();
+  const { login, loginWithToken } = useAuth();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
+
+  const { promptAsync: promptGoogleAsync, isReady: googleReady } =
+    useGoogleAuth(
+      async (token) => {
+        setGoogleLoading(false);
+        await loginWithToken(token);
+        router.replace("/");
+      },
+      (message) => {
+        setGoogleLoading(false);
+        setError(message);
+      }
+    );
+
+  const { signIn: appleSignIn } = useAppleAuth(
+    async (token) => {
+      setAppleLoading(false);
+      await loginWithToken(token);
+      router.replace("/");
+    },
+    (message) => {
+      setAppleLoading(false);
+      setError(message);
+    }
+  );
+
+  const handleGoogleSignIn = async () => {
+    setError("");
+    setGoogleLoading(true);
+    await promptGoogleAsync();
+  };
+
+  const handleAppleSignIn = async () => {
+    setError("");
+    setAppleLoading(true);
+    await appleSignIn();
+  };
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
 
@@ -209,9 +250,17 @@ export default function LoginScreen() {
                   styles.socialBtn,
                   pressed && styles.socialBtnPressed,
                 ]}
+                onPress={handleAppleSignIn}
+                disabled={appleLoading}
               >
-                <AppleIcon />
-                <Text style={styles.socialBtnText}>Apple</Text>
+                {appleLoading ? (
+                  <ActivityIndicator color="#F8FAFC" size="small" />
+                ) : (
+                  <>
+                    <AppleIcon />
+                    <Text style={styles.socialBtnText}>Apple</Text>
+                  </>
+                )}
               </Pressable>
 
               <Pressable
@@ -219,9 +268,17 @@ export default function LoginScreen() {
                   styles.socialBtn,
                   pressed && styles.socialBtnPressed,
                 ]}
+                onPress={handleGoogleSignIn}
+                disabled={!googleReady || googleLoading}
               >
-                <GoogleIcon />
-                <Text style={styles.socialBtnText}>Google</Text>
+                {googleLoading ? (
+                  <ActivityIndicator color="#F8FAFC" size="small" />
+                ) : (
+                  <>
+                    <GoogleIcon />
+                    <Text style={styles.socialBtnText}>Google</Text>
+                  </>
+                )}
               </Pressable>
             </View>
           </ScrollView>

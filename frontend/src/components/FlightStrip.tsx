@@ -44,9 +44,13 @@ export interface FlightLeg {
 
 export interface Combo {
   outbound: FlightLeg;
-  return: FlightLeg;
+  return?: FlightLeg;
   totalPrice: number;
   nights: number;
+  /** Present on non-hydrated cron data (RoundTripRawOption format) */
+  price?: number;
+  outboundDate?: string;
+  returnDate?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -385,7 +389,7 @@ function RoundTripBookButton({
   origin,
   destination,
 }: {
-  combo: Combo;
+  combo: Combo & { return: FlightLeg };
   origin: string;
   destination: string;
 }) {
@@ -638,6 +642,8 @@ export function RoundTripStrip({
   isExpanded,
   onToggle,
   airlineLogos,
+  onHydrate,
+  isHydrating,
 }: {
   item: Combo;
   index: number;
@@ -647,12 +653,15 @@ export function RoundTripStrip({
   isExpanded: boolean;
   onToggle: () => void;
   airlineLogos?: Record<string, string>;
+  onHydrate?: (index: number) => void;
+  isHydrating?: boolean;
 }) {
   // Zebra-stripe: even rows get a barely-perceptible warmer tint
   const isEven = index % 2 === 0;
 
   // Determine if outbound and return are the same airline
-  const sameAirline = item.outbound.airline === item.return.airline;
+  const hasReturn = !!item.return;
+  const sameAirline = hasReturn ? item.outbound.airline === item.return!.airline : true;
 
   return (
     <View>
@@ -691,7 +700,7 @@ export function RoundTripStrip({
                 isCheapest && strip.priceCheapest,
               ]}
             >
-              ${item.totalPrice}
+              ${item.totalPrice ?? item.price}
             </Text>
             {isCheapest && (
               <Text style={strip.cheapestLabel}>BEST</Text>
@@ -712,28 +721,40 @@ export function RoundTripStrip({
                 logoUrl={resolveLogoUrl(item.outbound, airlineLogos)}
                 size={18}
               />
-              {!sameAirline && (
+              {!sameAirline && hasReturn && (
                 <>
                   <View style={strip.airlineSep} />
                   <AirlineLogo
-                    airline={item.return.airline}
-                    logoUrl={resolveLogoUrl(item.return, airlineLogos)}
+                    airline={item.return!.airline}
+                    logoUrl={resolveLogoUrl(item.return!, airlineLogos)}
                     size={18}
                   />
                 </>
               )}
               <Text style={strip.airlineText} numberOfLines={1}>
-                {sameAirline
+                {sameAirline || !hasReturn
                   ? item.outbound.airline
-                  : `${item.outbound.airline} / ${item.return.airline}`}
+                  : `${item.outbound.airline} / ${item.return!.airline}`}
               </Text>
             </View>
 
             {/* Outbound summary */}
             <CompactLegRow leg={item.outbound} isCheapest={isCheapest} />
 
-            {/* Return summary */}
-            <CompactLegRow leg={item.return} isCheapest={isCheapest} />
+            {/* Return summary (or placeholder if not hydrated) */}
+            {hasReturn ? (
+              <CompactLegRow leg={item.return!} isCheapest={isCheapest} />
+            ) : (
+              <Pressable
+                onPress={() => onHydrate?.(index)}
+                disabled={isHydrating}
+                style={compactLeg.row}
+              >
+                <Text style={[compactLeg.meta, { fontStyle: "italic", color: "#3B82F6" }]}>
+                  {isHydrating ? "Loading return flight..." : "Tap to see return details"}
+                </Text>
+              </Pressable>
+            )}
           </View>
 
           {/* Right: Expand chevron */}
@@ -765,19 +786,50 @@ export function RoundTripStrip({
               airlineLogos={airlineLogos}
             />
 
-            {/* Return leg detail */}
-            <ExpandedLeg
-              leg={item.return}
-              label="Return"
-              airlineLogos={airlineLogos}
-            />
+            {/* Return leg detail (or placeholder if not hydrated) */}
+            {hasReturn ? (
+              <ExpandedLeg
+                leg={item.return!}
+                label="Return"
+                airlineLogos={airlineLogos}
+              />
+            ) : (
+              <View style={expandedStyles.legSection}>
+                <View style={expandedStyles.legHeader}>
+                  <Text style={expandedStyles.legLabel}>Return</Text>
+                </View>
+                <Text style={[expandedStyles.airlineName, { color: "#94A3B8", fontStyle: "italic" }]}>
+                  Loading return flight details...
+                </Text>
+              </View>
+            )}
 
-            {/* Single book button for the whole round trip */}
-            <RoundTripBookButton
-              combo={item}
-              origin={origin}
-              destination={destination}
-            />
+            {/* Book button — fallback to search URL when return data is missing */}
+            {hasReturn ? (
+              <RoundTripBookButton
+                combo={item as Combo & { return: FlightLeg }}
+                origin={origin}
+                destination={destination}
+              />
+            ) : (
+              <Pressable
+                style={({ pressed }) => [
+                  expandedStyles.bookBtn,
+                  pressed && expandedStyles.bookBtnPressed,
+                ]}
+                onPress={() =>
+                  openBookingLink({
+                    outbound: item.outbound,
+                    origin,
+                    destination,
+                  })
+                }
+              >
+                <Text style={expandedStyles.bookBtnText}>
+                  Search on Google Flights
+                </Text>
+              </Pressable>
+            )}
           </View>
         </AccordionBody>
       </Pressable>

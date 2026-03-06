@@ -13,6 +13,7 @@ interface AuthState {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
+  loginWithToken: (token: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -44,13 +45,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(newToken);
   };
 
+  const loginWithToken = async (newToken: string) => {
+    await SecureStore.setItemAsync("auth_token", newToken);
+    setToken(newToken);
+  };
+
   const logout = async () => {
     await SecureStore.deleteItemAsync("auth_token");
     setToken(null);
   };
 
   return (
-    <AuthContext.Provider value={{ token, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ token, isLoading, login, register, loginWithToken, logout }}>
       {children}
     </AuthContext.Provider>
   );
