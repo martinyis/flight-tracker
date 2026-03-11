@@ -1,115 +1,79 @@
-import { Request, Response, NextFunction } from "express";
+import { Response } from "express";
+import { AuthRequest } from "../middleware/auth";
+import { asyncHandler } from "../middleware/asyncHandler";
 import * as authService from "../services/authService";
+import prisma from "../config/db";
+import { NotFoundError } from "../errors/AppError";
 
-export async function register(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const { email, password } = req.body;
+export const appleLogin = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { user, token } = await authService.appleAuth(req.body.identityToken);
+  res.json({ token, user: { id: user.id, email: user.email } });
+});
 
-    if (!email || !password) {
-      res.status(400).json({ error: "Email and password are required" });
-      return;
-    }
+export const googleLogin = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { user, token } = await authService.googleAuth(req.body.idToken);
+  res.json({ token, user: { id: user.id, email: user.email } });
+});
 
-    if (password.length < 6) {
-      res.status(400).json({ error: "Password must be at least 6 characters" });
-      return;
-    }
+export const getProfile = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const userId = Number(req.userId);
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      googleId: true,
+      appleId: true,
+      creditBalance: true,
+      createdAt: true,
+      _count: { select: { searches: true } },
+    },
+  });
 
-    const { user, token } = await authService.registerUser(email, password);
-    res.status(201).json({
-      token,
-      user: { id: user.id, email: user.email },
-    });
-  } catch (err: any) {
-    if (err.statusCode) {
-      res.status(err.statusCode).json({ error: err.message });
-      return;
-    }
-    next(err);
+  if (!user) throw new NotFoundError("User not found");
+
+  const activeSearches = await prisma.savedSearch.count({
+    where: { userId, active: true },
+  });
+
+  res.json({
+    id: user.id,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    provider: user.appleId ? "apple" : user.googleId ? "google" : "unknown",
+    creditBalance: user.creditBalance,
+    createdAt: user.createdAt,
+    totalSearches: user._count.searches,
+    activeSearches,
+  });
+});
+
+export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const userId = Number(req.userId);
+  const { firstName, lastName } = req.body;
+
+  const data: Record<string, string | null> = {};
+  if (firstName !== undefined) {
+    data.firstName = typeof firstName === "string" ? firstName.trim() || null : null;
   }
-}
-
-export async function login(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      res.status(400).json({ error: "Email and password are required" });
-      return;
-    }
-
-    const { user, token } = await authService.loginUser(email, password);
-    res.json({
-      token,
-      user: { id: user.id, email: user.email },
-    });
-  } catch (err: any) {
-    if (err.statusCode) {
-      res.status(err.statusCode).json({ error: err.message });
-      return;
-    }
-    next(err);
+  if (lastName !== undefined) {
+    data.lastName = typeof lastName === "string" ? lastName.trim() || null : null;
   }
-}
 
-export async function appleLogin(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const { identityToken } = req.body;
+  const user = await prisma.user.update({
+    where: { id: userId },
+    select: { id: true, firstName: true, lastName: true },
+    data,
+  });
 
-    if (!identityToken) {
-      res.status(400).json({ error: "Apple identity token is required" });
-      return;
-    }
+  res.json(user);
+});
 
-    const { user, token } = await authService.appleAuth(identityToken);
-    res.json({
-      token,
-      user: { id: user.id, email: user.email },
-    });
-  } catch (err: any) {
-    if (err.statusCode) {
-      res.status(err.statusCode).json({ error: err.message });
-      return;
-    }
-    next(err);
-  }
-}
-
-export async function googleLogin(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const { idToken } = req.body;
-
-    if (!idToken) {
-      res.status(400).json({ error: "Google ID token is required" });
-      return;
-    }
-
-    const { user, token } = await authService.googleAuth(idToken);
-    res.json({
-      token,
-      user: { id: user.id, email: user.email },
-    });
-  } catch (err: any) {
-    if (err.statusCode) {
-      res.status(err.statusCode).json({ error: err.message });
-      return;
-    }
-    next(err);
-  }
-}
+export const deleteAccount = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const userId = Number(req.userId);
+  await prisma.user.delete({ where: { id: userId } });
+  res.json({ message: "Account deleted" });
+});

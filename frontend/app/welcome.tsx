@@ -17,8 +17,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Dimensions,
+  Platform,
   Pressable,
   SafeAreaView,
   StatusBar,
@@ -28,8 +30,12 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import FlightPriceWave, { WAVE_AREA_H } from "../src/components/FlightPriceWave";
-import { fonts } from "../src/utils/fonts";
+import Svg, { Path } from "react-native-svg";
+import FlightPriceWave, { WAVE_AREA_H } from "../src/components/welcome/FlightPriceWave";
+import { useAuth } from "../src/providers/AuthProvider";
+import { useGoogleAuth } from "../src/hooks/useGoogleAuth";
+import { useAppleAuth } from "../src/hooks/useAppleAuth";
+import { fonts } from "../src/theme";
 
 const SCREEN_W = Dimensions.get("window").width;
 const CARD_W = SCREEN_W * 0.85;
@@ -124,19 +130,82 @@ function MiniResultCard() {
 }
 
 // ---------------------------------------------------------------------------
+// Social icon helpers
+// ---------------------------------------------------------------------------
+
+function AppleIcon() {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 24 24" fill="#F8FAFC">
+      <Path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
+    </Svg>
+  );
+}
+
+function GoogleIcon() {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 24 24">
+      <Path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+      <Path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+      <Path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+      <Path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+    </Svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Welcome screen
 // ---------------------------------------------------------------------------
 
 export default function WelcomeScreen() {
   const router = useRouter();
+  const { loginWithToken } = useAuth();
+
+  const [error, setError] = useState("");
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
+
+  const { promptAsync: promptGoogleAsync, isReady: googleReady } =
+    useGoogleAuth(
+      async (token) => {
+        setGoogleLoading(false);
+        await loginWithToken(token);
+        router.replace("/");
+      },
+      (message) => {
+        setGoogleLoading(false);
+        setError(message);
+      }
+    );
+
+  const { signIn: appleSignIn } = useAppleAuth(
+    async (token) => {
+      setAppleLoading(false);
+      await loginWithToken(token);
+      router.replace("/");
+    },
+    (message) => {
+      setAppleLoading(false);
+      setError(message);
+    }
+  );
+
+  const handleGoogleSignIn = async () => {
+    setError("");
+    setGoogleLoading(true);
+    await promptGoogleAsync();
+  };
+
+  const handleAppleSignIn = async () => {
+    setError("");
+    setAppleLoading(true);
+    await appleSignIn();
+  };
 
   // Content below the grid (tagline + buttons) fades and slides in
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const contentY = useRef(new Animated.Value(16)).current;
 
   useEffect(() => {
-    // Content appears shortly after mount so the grid animation is already
-    // running when the tagline comes in
     const timer = setTimeout(() => {
       Animated.parallel([
         Animated.timing(contentOpacity, {
@@ -154,9 +223,6 @@ export default function WelcomeScreen() {
     return () => clearTimeout(timer);
   }, []);
 
-  // The gradient overlay covers the bottom ~38% of the grid area.
-  // We position it absolutely within the grid wrapper so it sits perfectly
-  // over the lower rows of dots.
   const gradientH = Math.round(WAVE_AREA_H * 0.58);
 
   return (
@@ -184,7 +250,6 @@ export default function WelcomeScreen() {
         <View style={styles.gridZone}>
           <FlightPriceWave />
 
-          {/* Gradient overlay: transparent → #0A1628, covering the lower rows */}
           <LinearGradient
             colors={["transparent", "#0A1628"]}
             start={{ x: 0.5, y: 0 }}
@@ -199,15 +264,13 @@ export default function WelcomeScreen() {
             pointerEvents="none"
           />
 
-          {/* ── Zone 4: Mini result card — sits in the fade zone ── */}
           <View style={styles.resultCardAnchor}>
-            {/* Subtle visual connection from scanning grid to result */}
             <View style={styles.connectingLine} />
             <MiniResultCard />
           </View>
         </View>
 
-        {/* ── Zone 5: Buttons — pinned to bottom ── */}
+        {/* ── Zone 5: Social auth buttons — pinned to bottom ── */}
         <Animated.View
           style={[
             styles.buttonWrap,
@@ -217,31 +280,52 @@ export default function WelcomeScreen() {
             },
           ]}
         >
-          <Pressable
-            style={({ pressed }) => [
-              styles.primaryBtn,
-              pressed && styles.primaryBtnPressed,
-            ]}
-            onPress={() => router.push("/register")}
-          >
-            <LinearGradient
-              colors={["#3B82F6", "#06B6D4"]}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={styles.gradientInner}
-            >
-              <Text style={styles.primaryBtnText}>Get Started</Text>
-            </LinearGradient>
-          </Pressable>
+          {error ? (
+            <View style={styles.errorWrap}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
 
+          {/* Apple Sign-In */}
+          {Platform.OS === "ios" && (
+            <Pressable
+              style={({ pressed }) => [
+                styles.socialBtn,
+                styles.appleBtn,
+                pressed && styles.socialBtnPressed,
+              ]}
+              onPress={handleAppleSignIn}
+              disabled={appleLoading}
+            >
+              {appleLoading ? (
+                <ActivityIndicator color="#F8FAFC" size="small" />
+              ) : (
+                <>
+                  <AppleIcon />
+                  <Text style={styles.socialBtnText}>Continue with Apple</Text>
+                </>
+              )}
+            </Pressable>
+          )}
+
+          {/* Google Sign-In */}
           <Pressable
             style={({ pressed }) => [
-              styles.secondaryBtn,
-              pressed && styles.secondaryBtnPressed,
+              styles.socialBtn,
+              styles.googleBtn,
+              pressed && styles.socialBtnPressed,
             ]}
-            onPress={() => router.push("/login")}
+            onPress={handleGoogleSignIn}
+            disabled={!googleReady || googleLoading}
           >
-            <Text style={styles.secondaryBtnText}>I already have an account</Text>
+            {googleLoading ? (
+              <ActivityIndicator color="#F8FAFC" size="small" />
+            ) : (
+              <>
+                <GoogleIcon />
+                <Text style={styles.socialBtnText}>Continue with Google</Text>
+              </>
+            )}
           </Pressable>
         </Animated.View>
       </SafeAreaView>
@@ -399,48 +483,45 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     paddingHorizontal: 24,
     paddingBottom: 44,
+    gap: 12,
   },
 
-  primaryBtn: {
-    borderRadius: 14,
-    marginBottom: 12,
-    shadowColor: "#3B82F6",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 8,
-    overflow: "hidden",
+  errorWrap: {
+    backgroundColor: "rgba(220,38,38,0.15)",
+    borderRadius: 10,
+    padding: 12,
   },
-  primaryBtnPressed: {
-    shadowOpacity: 0.15,
-    transform: [{ scale: 0.98 }],
-  },
-  gradientInner: {
-    borderRadius: 14,
-    paddingVertical: 18,
-    alignItems: "center",
-  },
-  primaryBtnText: {
-    fontFamily: fonts.bold,
-    fontSize: 16,
-    color: "#FFFFFF",
+  errorText: {
+    fontFamily: fonts.regular,
+    color: "#FCA5A5",
+    fontSize: 14,
+    textAlign: "center",
   },
 
-  secondaryBtn: {
-    backgroundColor: "rgba(255,255,255,0.08)",
+  socialBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
     borderRadius: 14,
     paddingVertical: 18,
-    alignItems: "center",
     borderWidth: 1,
+  },
+  socialBtnPressed: {
+    transform: [{ scale: 0.98 }],
+    opacity: 0.85,
+  },
+  appleBtn: {
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  googleBtn: {
+    backgroundColor: "rgba(255,255,255,0.08)",
     borderColor: "rgba(255,255,255,0.12)",
   },
-  secondaryBtnPressed: {
-    transform: [{ scale: 0.98 }],
-    backgroundColor: "rgba(255,255,255,0.12)",
-  },
-  secondaryBtnText: {
+  socialBtnText: {
     fontFamily: fonts.semiBold,
-    fontSize: 15,
+    fontSize: 16,
     color: "#F8FAFC",
   },
 });

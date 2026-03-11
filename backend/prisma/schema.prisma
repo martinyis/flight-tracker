@@ -8,16 +8,18 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String?
-  googleId  String?  @unique @map("google_id")
-  appleId   String?  @unique @map("apple_id")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id            Int      @id @default(autoincrement())
+  email         String   @unique
+  firstName     String?  @map("first_name")
+  lastName      String?  @map("last_name")
+  googleId      String?  @unique @map("google_id")
+  appleId       String?  @unique @map("apple_id")
+  creditBalance Int      @default(0) @map("credit_balance")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
-  searches SavedSearch[]
-  payments Payment[]
+  searches     SavedSearch[]
+  transactions CreditTransaction[]
 
   @@map("users")
 }
@@ -37,21 +39,24 @@ model SavedSearch {
   cheapestPrice     Float?    @map("cheapest_price")
   latestResults     Json      @default("[]") @map("latest_results")
   filters           Json      @default("{}") @map("filters")
+  apiFilters        Json      @default("{}") @map("api_filters")
   availableAirlines Json      @default("[]") @map("available_airlines")
   airlineLogos      Json      @default("{}") @map("airline_logos")
   rawLegs           Json      @default("{\"outbound\":[],\"return\":[]}") @map("raw_legs")
   priceHistory      Json      @default("[]") @map("price_history")
   nextCheckAt       DateTime? @map("next_check_at")
-  trackingPaid      Boolean   @default(false) @map("tracking_paid")
-  trackingFee       Float?    @map("tracking_fee")
-  trackingPaidAt    DateTime? @map("tracking_paid_at")
+  trackingActive    Boolean   @default(false) @map("tracking_active")
   comboCount        Int?      @map("combo_count")
   sentinelPairs     Json      @default("[]") @map("sentinel_pairs")
+  searchCredits     Int       @default(0) @map("search_credits")
+  trackingCredits   Int       @default(0) @map("tracking_credits")
+  trackingDays      Int?      @map("tracking_days")
+  trackingStartedAt DateTime? @map("tracking_started_at")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  payments Payment[]
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions CreditTransaction[]
 
   @@index([active, dateTo])
   @@index([active, nextCheckAt])
@@ -60,18 +65,19 @@ model SavedSearch {
   @@map("saved_searches")
 }
 
-model Payment {
+model CreditTransaction {
   id        Int      @id @default(autoincrement())
   userId    Int      @map("user_id")
-  searchId  Int      @map("search_id")
-  amount    Float
-  status    String   @default("completed")
+  searchId  Int?     @map("search_id")
+  amount    Int
+  type      String
+  note      String?
   createdAt DateTime @default(now()) @map("created_at")
 
-  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  search SavedSearch @relation(fields: [searchId], references: [id], onDelete: Cascade)
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  search SavedSearch? @relation(fields: [searchId], references: [id], onDelete: SetNull)
 
   @@index([userId])
-  @@index([searchId])
-  @@map("payments")
+  @@index([userId, type])
+  @@map("credit_transactions")
 }

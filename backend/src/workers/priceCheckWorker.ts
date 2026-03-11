@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import prisma from "../config/db";
-import { TripType, SearchFilters, PriceHistoryEntry } from "../types/search";
+import { TripType, SearchFilters, ApiFilters, readSearchFilters, readApiFilters, readPriceHistory, readSentinelPairs } from "../types/search";
 import {
   fetchPriceOnly,
   fetchOneWayPriceOnly,
@@ -11,10 +11,13 @@ import {
   FlightLeg,
 } from "../services/flightService";
 import { appendPriceHistory } from "../services/savedSearchService";
+import { SENTINEL_TOLERANCE, CRON_GROUP_DELAY_MS, TOP_RESULTS_LIMIT } from "../config/constants";
+import {
+  jsonRawLegs, jsonLatestResults, jsonAvailableAirlines,
+  jsonAirlineLogos, jsonPriceHistory, jsonSentinelPairs,
+} from "../types/prismaJson";
 
 let isRunning = false;
-
-const SENTINEL_TOLERANCE = 2; // $2 tolerance for sentinel price comparison
 
 interface DedupGroup {
   tripType: TripType;
@@ -26,34 +29,33 @@ interface DedupGroup {
     minNights?: number;
     maxNights?: number;
   };
+  apiFilters: ApiFilters;
   searchIds: number[];
 }
 
 /**
- * Compute next check time based on departure proximity.
- * 30-day monitoring cap: searches > 30 days out are deferred.
- * Frequencies: 30-7d = 2x/day, 6-2d = 3x/day, <2d = 4x/day.
+ * Compute next check time based on departure proximity and tracking window.
  */
-export function computeNextCheckAt(dateFrom: string): Date {
+export function computeNextCheckAt(
+  dateFrom: string,
+  trackingDays?: number | null,
+  trackingStartedAt?: Date | null
+): Date {
   const now = new Date();
   const departure = new Date(dateFrom + "T00:00:00Z");
+  const windowDays = trackingDays ?? 14;
+
+  if (trackingStartedAt) {
+    const expiresAt = new Date(trackingStartedAt.getTime() + windowDays * 86_400_000);
+    if (now >= expiresAt) return new Date(0);
+  }
+
   const daysOut = Math.floor((departure.getTime() - now.getTime()) / 86_400_000);
-
-  if (daysOut > 30) {
-    // Defer monitoring until 30 days before departure
-    return new Date(departure.getTime() - 30 * 86_400_000);
+  if (daysOut > windowDays) {
+    return new Date(departure.getTime() - windowDays * 86_400_000);
   }
 
-  let intervalHours: number;
-  if (daysOut >= 7) {
-    intervalHours = 12; // 2x per day
-  } else if (daysOut >= 2) {
-    intervalHours = 8; // 3x per day
-  } else {
-    intervalHours = 6; // 4x per day
-  }
-
-  return new Date(now.getTime() + intervalHours * 3600_000);
+  return new Date(now.getTime() + 24 * 3600_000);
 }
 
 export async function runPriceCheck(): Promise<void> {
@@ -73,16 +75,27 @@ export async function runPriceCheck(): Promise<void> {
       data: { active: false },
     });
     if (deactivated.count > 0) {
-      console.log(
-        `[PriceCheck] Deactivated ${deactivated.count} expired searches`
-      );
+      console.log(`[PriceCheck] Deactivated ${deactivated.count} expired searches`);
+    }
+
+    // Auto-deactivate searches whose tracking window has expired
+    const expiredTracking = await prisma.$executeRaw`
+      UPDATE "saved_searches"
+      SET "tracking_active" = false, "active" = false
+      WHERE "tracking_active" = true
+        AND "tracking_days" IS NOT NULL
+        AND "tracking_started_at" IS NOT NULL
+        AND "tracking_started_at" + ("tracking_days" || ' days')::interval < NOW()
+    `;
+    if (expiredTracking > 0) {
+      console.log(`[PriceCheck] Deactivated ${expiredTracking} searches with expired tracking window`);
     }
 
     // Load active, paid, non-expired searches that are due for check
     const searches = await prisma.savedSearch.findMany({
       where: {
         active: true,
-        trackingPaid: true,
+        trackingActive: true,
         dateTo: { gte: today },
         OR: [
           { nextCheckAt: null },
@@ -96,7 +109,6 @@ export async function runPriceCheck(): Promise<void> {
       return;
     }
 
-    // Build a lookup map for per-search data (filters, priceHistory)
     const searchesById = new Map(searches.map((s) => [s.id, s]));
 
     // Deduplicate by search parameters ONLY (not filters)
@@ -104,10 +116,11 @@ export async function runPriceCheck(): Promise<void> {
 
     for (const s of searches) {
       const tripType = (s.tripType || "roundtrip") as TripType;
+      const apiFiltersKey = JSON.stringify(s.apiFilters ?? {});
       const key =
         tripType === "oneway"
-          ? `oneway|${s.origin}|${s.destination}|${s.dateFrom}|${s.dateTo}`
-          : `roundtrip|${s.origin}|${s.destination}|${s.dateFrom}|${s.dateTo}|${s.minNights}|${s.maxNights}`;
+          ? `oneway|${s.origin}|${s.destination}|${s.dateFrom}|${s.dateTo}|${apiFiltersKey}`
+          : `roundtrip|${s.origin}|${s.destination}|${s.dateFrom}|${s.dateTo}|${s.minNights}|${s.maxNights}|${apiFiltersKey}`;
 
       const existing = groups.get(key);
       if (existing) {
@@ -125,6 +138,7 @@ export async function runPriceCheck(): Promise<void> {
               maxNights: s.maxNights!,
             }),
           },
+          apiFilters: readApiFilters(s.apiFilters),
           searchIds: [s.id],
         });
       }
@@ -138,63 +152,61 @@ export async function runPriceCheck(): Promise<void> {
     for (const [key, group] of groups) {
       try {
         if (group.tripType === "oneway") {
-          // One-way: full scan (no sampling)
           const { rawLegs, cheapestPrice: unfilteredCheapest,
                   availableAirlines, airlineLogos } =
-            await fetchOneWayPriceOnly({ ...group.params, sampleInterval: 1 });
+            await fetchOneWayPriceOnly({ ...group.params, sampleInterval: 1, apiFilters: group.apiFilters });
 
           for (const searchId of group.searchIds) {
             const s = searchesById.get(searchId)!;
-            const searchFilters = s.filters as SearchFilters;
+            const searchFilters = readSearchFilters(s.filters);
 
             let cheapestPrice: number | null;
-            let results: any[];
+            let results: FlightLeg[];
 
             if (searchFilters?.airlines?.length) {
               results = reduceOneWayFromLegs(rawLegs, searchFilters);
               cheapestPrice = results.length > 0
-                ? Math.min(...(results as FlightLeg[]).map((r) => r.price))
+                ? Math.min(...results.map((r) => r.price))
                 : null;
             } else {
               results = reduceOneWayFromLegs(rawLegs);
               cheapestPrice = unfilteredCheapest;
             }
 
-            const existingHistory = (s.priceHistory ?? []) as unknown as PriceHistoryEntry[];
+            const existingHistory = readPriceHistory(s.priceHistory);
 
             await prisma.savedSearch.update({
               where: { id: searchId },
               data: {
-                rawLegs: { outbound: rawLegs, return: [] } as any,
-                latestResults: results as any,
+                rawLegs: jsonRawLegs({ outbound: rawLegs, return: [] }),
+                latestResults: jsonLatestResults(results),
                 cheapestPrice,
-                availableAirlines: availableAirlines as any,
-                airlineLogos: airlineLogos as any,
+                availableAirlines: jsonAvailableAirlines(availableAirlines),
+                airlineLogos: jsonAirlineLogos(airlineLogos),
                 lastCheckedAt: new Date(),
-                nextCheckAt: computeNextCheckAt(s.dateFrom),
-                priceHistory: appendPriceHistory(existingHistory, cheapestPrice) as any,
+                nextCheckAt: computeNextCheckAt(s.dateFrom, s.trackingDays, s.trackingStartedAt),
+                priceHistory: jsonPriceHistory(appendPriceHistory(existingHistory, cheapestPrice)),
               },
             });
           }
         } else {
           // Round-trip: sentinel strategy
           const firstSearch = searchesById.get(group.searchIds[0])!;
-          const sentinelPairs = (firstSearch.sentinelPairs ?? []) as { out: string; ret: string }[];
+          const sentinelPairs = readSentinelPairs(firstSearch.sentinelPairs);
 
           let needsFullScan = true;
 
-          // Try sentinel check first (if sentinels exist and we have a stored price)
           if (sentinelPairs.length > 0 && firstSearch.cheapestPrice != null) {
             const { sentinelCheapest } = await fetchSentinelPrices(
               group.params.origin,
               group.params.destination,
-              sentinelPairs
+              sentinelPairs,
+              group.apiFilters
             );
 
             if (sentinelCheapest != null) {
               const diff = Math.abs(sentinelCheapest - firstSearch.cheapestPrice);
               if (diff <= SENTINEL_TOLERANCE) {
-                // Prices unchanged — skip full scan, just update timestamps
                 needsFullScan = false;
                 sentinelSkips++;
                 console.log(
@@ -202,11 +214,13 @@ export async function runPriceCheck(): Promise<void> {
                 );
                 for (const searchId of group.searchIds) {
                   const s = searchesById.get(searchId)!;
+                  const existingHistory = readPriceHistory(s.priceHistory);
                   await prisma.savedSearch.update({
                     where: { id: searchId },
                     data: {
                       lastCheckedAt: new Date(),
-                      nextCheckAt: computeNextCheckAt(s.dateFrom),
+                      nextCheckAt: computeNextCheckAt(s.dateFrom, s.trackingDays, s.trackingStartedAt),
+                      priceHistory: jsonPriceHistory(appendPriceHistory(existingHistory, s.cheapestPrice)),
                     },
                   });
                 }
@@ -219,7 +233,6 @@ export async function runPriceCheck(): Promise<void> {
           }
 
           if (needsFullScan) {
-            // Full scan: all combos, no sampling
             const { rawOptions, cheapestPrice: unfilteredCheapest,
                     availableAirlines, airlineLogos } =
               await fetchPriceOnly({
@@ -229,9 +242,9 @@ export async function runPriceCheck(): Promise<void> {
                   minNights: number; maxNights: number;
                 }),
                 sampleInterval: 1,
+                apiFilters: group.apiFilters,
               });
 
-            // Recompute sentinels for next run
             const newSentinels = selectSentinels({
               dateFrom: group.params.dateFrom,
               dateTo: group.params.dateTo,
@@ -241,32 +254,32 @@ export async function runPriceCheck(): Promise<void> {
 
             for (const searchId of group.searchIds) {
               const s = searchesById.get(searchId)!;
-              const searchFilters = s.filters as SearchFilters;
+              const searchFilters = readSearchFilters(s.filters);
 
               let filteredOptions = rawOptions;
               let cheapestPrice: number | null;
 
               if (searchFilters?.airlines?.length) {
-                filteredOptions = filterAndSortRawOptions(rawOptions, searchFilters, 10);
+                filteredOptions = filterAndSortRawOptions(rawOptions, searchFilters, TOP_RESULTS_LIMIT);
                 cheapestPrice = filteredOptions.length > 0 ? filteredOptions[0].price : null;
               } else {
                 cheapestPrice = unfilteredCheapest;
               }
 
-              const existingHistory = (s.priceHistory ?? []) as unknown as PriceHistoryEntry[];
+              const existingHistory = readPriceHistory(s.priceHistory);
 
               await prisma.savedSearch.update({
                 where: { id: searchId },
                 data: {
-                  rawLegs: rawOptions as any,
-                  latestResults: filteredOptions as any,
+                  rawLegs: jsonRawLegs(rawOptions),
+                  latestResults: jsonLatestResults(filteredOptions),
                   cheapestPrice,
-                  availableAirlines: availableAirlines as any,
-                  airlineLogos: airlineLogos as any,
+                  availableAirlines: jsonAvailableAirlines(availableAirlines),
+                  airlineLogos: jsonAirlineLogos(airlineLogos),
                   lastCheckedAt: new Date(),
-                  nextCheckAt: computeNextCheckAt(s.dateFrom),
-                  priceHistory: appendPriceHistory(existingHistory, cheapestPrice) as any,
-                  sentinelPairs: newSentinels as any,
+                  nextCheckAt: computeNextCheckAt(s.dateFrom, s.trackingDays, s.trackingStartedAt),
+                  priceHistory: jsonPriceHistory(appendPriceHistory(existingHistory, cheapestPrice)),
+                  sentinelPairs: jsonSentinelPairs(newSentinels),
                 },
               });
             }
@@ -280,8 +293,7 @@ export async function runPriceCheck(): Promise<void> {
         console.error(`[PriceCheck] Error for group ${key}:`, err);
       }
 
-      // 2-second delay between groups to avoid hammering SerpAPI
-      await new Promise((r) => setTimeout(r, 2000));
+      await new Promise((r) => setTimeout(r, CRON_GROUP_DELAY_MS));
     }
 
     console.log(
@@ -293,7 +305,6 @@ export async function runPriceCheck(): Promise<void> {
 }
 
 export function startPriceCheckCron(): void {
-  // Run every hour -- adaptive scheduling means only due searches are processed
   cron.schedule("0 * * * *", async () => {
     try {
       await runPriceCheck();

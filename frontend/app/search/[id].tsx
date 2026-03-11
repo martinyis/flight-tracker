@@ -2,8 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
-  FlatList,
-  ScrollView,
+  Modal,
   Pressable,
   ActivityIndicator,
   Alert,
@@ -18,16 +17,16 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import api from "../../src/api/client";
+import api from "../../src/lib/api/client";
 import {
   RoundTripStrip,
   OneWayStrip,
   FloatingLayersContainer,
-} from "../../src/components/FlightStrip";
-import BackButton from "../../src/components/BackButton";
-import AirlineLogo from "../../src/components/AirlineLogo";
-import { timeAgo } from "../../src/utils/time";
-import { fonts } from "../../src/utils/fonts";
+} from "../../src/components/flights/FlightStrip";
+import BackButton from "../../src/components/ui/BackButton";
+import AirlineLogo from "../../src/components/ui/AirlineLogo";
+import { timeAgo } from "../../src/lib/utils/time";
+import { fonts } from "../../src/theme";
 
 // Enable LayoutAnimation on Android
 if (
@@ -128,7 +127,7 @@ function MeshBackground() {
 // View-based icons (no emojis)
 // ---------------------------------------------------------------------------
 
-function ArrowIcon({ size = 14, color = "#3B82F6" }: { size?: number; color?: string }) {
+function ArrowIcon({ size = 14, color = "#2F9CF4" }: { size?: number; color?: string }) {
   return (
     <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
       <View
@@ -148,11 +147,11 @@ function ArrowIcon({ size = 14, color = "#3B82F6" }: { size?: number; color?: st
 
 function TrashIcon({ color = "#EF4444" }: { color?: string }) {
   return (
-    <View style={{ width: 14, height: 14, alignItems: "center" }}>
+    <View style={{ width: 16, height: 16, alignItems: "center" }}>
       {/* Lid */}
       <View
         style={{
-          width: 14,
+          width: 16,
           height: 2,
           borderRadius: 1,
           backgroundColor: color,
@@ -161,9 +160,9 @@ function TrashIcon({ color = "#EF4444" }: { color?: string }) {
       {/* Body */}
       <View
         style={{
-          width: 10,
-          height: 9,
-          marginTop: 1,
+          width: 12,
+          height: 10,
+          marginTop: 1.5,
           borderLeftWidth: 1.5,
           borderRightWidth: 1.5,
           borderBottomWidth: 1.5,
@@ -299,14 +298,60 @@ function CheckIcon({ size = 18, color = "#FFFFFF" }: { size?: number; color?: st
   );
 }
 
+/** Three-dot overflow icon */
+function OverflowIcon({ color = "#94A3B8" }: { color?: string }) {
+  const dot = { width: 3.5, height: 3.5, borderRadius: 1.75, backgroundColor: color };
+  return (
+    <View style={{ width: 20, height: 20, alignItems: "center", justifyContent: "center", gap: 2.5 }}>
+      <View style={dot} />
+      <View style={dot} />
+      <View style={dot} />
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tracking cost calculator (mirrors backend creditService tiers)
+// ---------------------------------------------------------------------------
+
+const TRACKING_TIERS: [number, number][] = [
+  [10, 25],
+  [20, 35],
+  [50, 55],
+  [100, 85],
+  [150, 120],
+  [200, 175],
+];
+
+function computeTrackingCredits(comboCount: number, trackingDays: number): number {
+  let base14 = TRACKING_TIERS[TRACKING_TIERS.length - 1][1];
+  for (const [maxCombos, credits] of TRACKING_TIERS) {
+    if (comboCount <= maxCombos) {
+      base14 = credits;
+      break;
+    }
+  }
+  return Math.ceil(base14 * (trackingDays / 14));
+}
+
 // ---------------------------------------------------------------------------
 // Sticky header constants
 // ---------------------------------------------------------------------------
 
 const AUTO_REFRESH_THRESHOLD_MS = 8 * 60 * 60 * 1000; // 8 hours
-const STICKY_HEADER_HEIGHT = 56;
+const STICKY_HEADER_HEIGHT = 48;
 // Scroll range over which the header fades/slides in (px)
 const STICKY_FADE_RANGE = 40;
+
+// ---------------------------------------------------------------------------
+// Tracking duration presets
+// ---------------------------------------------------------------------------
+
+const TRACKING_PRESETS = [
+  { label: "7d", days: 7 },
+  { label: "14d", days: 14 },
+  { label: "30d", days: 30 },
+] as const;
 
 // ---------------------------------------------------------------------------
 // Screen
@@ -322,6 +367,17 @@ export default function SearchDetailScreen() {
   const [updatingFilter, setUpdatingFilter] = useState(false);
   // Floating Layers: only one strip expanded at a time (-1 = none)
   const [expandedIndex, setExpandedIndex] = useState(-1);
+
+  // -- Overflow menu --
+  const [overflowVisible, setOverflowVisible] = useState(false);
+
+  // -- Airline filter expansion --
+  const [airlinesExpanded, setAirlinesExpanded] = useState(false);
+
+  // -- Inline tracking activation --
+  const [trackingExpanded, setTrackingExpanded] = useState(false);
+  const [selectedTrackingDays, setSelectedTrackingDays] = useState(14);
+  const [activatingTracking, setActivatingTracking] = useState(false);
 
   // -- Refresh button: cooldown & loading phase --
   const COOLDOWN_SECONDS = 120; // 2 minutes
@@ -378,7 +434,7 @@ export default function SearchDetailScreen() {
 
   // -- Sticky header scroll tracking --
   const scrollY = useRef(new Animated.Value(0)).current;
-  // Height of the hero section (navRow + hero card) -- measured via onLayout
+  // Height of the hero section -- measured via onLayout
   const [heroHeight, setHeroHeight] = useState(0);
   const heroMeasured = heroHeight > 0;
   // JS-side boolean: enables touch events on sticky header only when visible.
@@ -390,7 +446,6 @@ export default function SearchDetailScreen() {
     const threshold = Math.max(heroHeight - 20, 0);
     const listenerId = scrollY.addListener(({ value }) => {
       const shouldShow = value > threshold;
-      // Only update state when the boolean actually changes
       setStickyVisible((prev) => (prev !== shouldShow ? shouldShow : prev));
     });
     return () => scrollY.removeListener(listenerId);
@@ -413,18 +468,16 @@ export default function SearchDetailScreen() {
         const isStale = age > AUTO_REFRESH_THRESHOLD_MS;
 
         if (needsHydration && !isStale) {
-          // Data is recent but needs hydration — hydrate only (no full refresh)
           setRefreshing(true);
           try {
             const hydrateRes = await api.post(`/search/${id}/hydrate`);
             setSearch(hydrateRes.data);
           } catch {
-            // Silently fail — user still sees partial data with outbound + price
+            // Silently fail -- user still sees partial data with outbound + price
           } finally {
             setRefreshing(false);
           }
         } else if (isStale) {
-          // Data is stale — do a full refresh (returns hydrated data)
           setRefreshing(true);
           const cleanupPhases = startLoadingPhases();
           try {
@@ -432,7 +485,7 @@ export default function SearchDetailScreen() {
             setSearch(refreshRes.data);
             startCooldown();
           } catch {
-            // Silently fail — user still sees cached data
+            // Silently fail -- user still sees cached data
           } finally {
             setRefreshing(false);
             setRefreshPhase(0);
@@ -440,7 +493,6 @@ export default function SearchDetailScreen() {
           }
         }
       } else if (needsHydration && data.trackingPaid) {
-        // No lastCheckedAt but needs hydration (edge case)
         setRefreshing(true);
         try {
           const hydrateRes = await api.post(`/search/${id}/hydrate`);
@@ -464,6 +516,7 @@ export default function SearchDetailScreen() {
   }, [id]);
 
   const handleDelete = () => {
+    setOverflowVisible(false);
     Alert.alert("Delete Search", "Are you sure you want to delete this search?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -496,7 +549,13 @@ export default function SearchDetailScreen() {
           "Activate price tracking to refresh prices.",
           [
             { text: "Cancel", style: "cancel" },
-            { text: "Activate", onPress: handleActivateTracking },
+            {
+              text: "Activate",
+              onPress: () => {
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                setTrackingExpanded(true);
+              },
+            },
           ]
         );
       } else if (status === 429) {
@@ -511,18 +570,21 @@ export default function SearchDetailScreen() {
     }
   };
 
-  const handleActivateTracking = async () => {
+  const handleActivateTracking = async (days: number) => {
+    setActivatingTracking(true);
     try {
-      const res = await api.post(`/search/${id}/activate-tracking`);
+      await api.post(`/search/${id}/activate-tracking`, {
+        trackingDays: days,
+      });
       setSearch((prev) =>
         prev ? { ...prev, trackingPaid: true, active: true } : prev
       );
-      Alert.alert(
-        "Tracking Activated",
-        "Price monitoring is now active. We'll check for price changes automatically."
-      );
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setTrackingExpanded(false);
     } catch (err: any) {
       Alert.alert("Error", err.response?.data?.error ?? "Failed to activate tracking");
+    } finally {
+      setActivatingTracking(false);
     }
   };
 
@@ -546,15 +608,15 @@ export default function SearchDetailScreen() {
     }
   };
 
-  const handleAirlineChipToggle = async (airline: string) => {
+  const handleAirlineToggle = async (airline: string) => {
     if (!search || updatingFilter) return;
 
     const current = search.filters?.airlines ?? [];
     let updated: string[];
 
     if (current.length === 0) {
-      // No filter active — user is selecting ONE airline (deselecting all others)
-      updated = [airline];
+      // No filter active (all shown) -- exclude the tapped airline
+      updated = search.availableAirlines.filter((a) => a !== airline);
     } else if (current.includes(airline)) {
       updated = current.filter((a) => a !== airline);
     } else {
@@ -581,6 +643,23 @@ export default function SearchDetailScreen() {
     }
   };
 
+  /** Reset all airline filters to show all */
+  const handleClearFilters = async () => {
+    if (!search || updatingFilter) return;
+    setUpdatingFilter(true);
+    try {
+      const res = await api.patch(`/search/${id}/filters`, {
+        filters: { airlines: [] },
+      });
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setSearch(res.data);
+    } catch {
+      Alert.alert("Error", "Failed to update filter");
+    } finally {
+      setUpdatingFilter(false);
+    }
+  };
+
   const formatDate = (d: string) =>
     new Date(d + "T00:00:00").toLocaleDateString("en-US", {
       month: "short",
@@ -589,185 +668,278 @@ export default function SearchDetailScreen() {
 
   const isOneWay = search?.tripType === "oneway";
 
+  // Compute days until departure for "Until dep" chip label
+  const daysUntilDeparture = useMemo(() => {
+    if (!search) return 0;
+    const dep = new Date(search.dateFrom + "T00:00:00").getTime();
+    return Math.max(1, Math.ceil((dep - Date.now()) / 86_400_000));
+  }, [search?.dateFrom]);
+
   // ------------------------------------------------------------------
-  // Header -- hero section with route, price, and actions
+  // Header -- hero section with editorial typography
   // ------------------------------------------------------------------
 
-  // Callback for measuring hero section height (navRow + hero card).
-  // Used to determine the scroll threshold for showing the sticky header.
   const onHeroLayout = useCallback((e: LayoutChangeEvent) => {
     const h = e.nativeEvent.layout.height;
     if (h > 0 && h !== heroHeight) setHeroHeight(h);
   }, [heroHeight]);
 
-  // Memoised as a JSX element so ScrollView keeps a stable reference and does
-  // not unmount/remount the header on every state change.
   const listHeader = useMemo(() => {
     if (!search) return null;
 
-    // -- Refresh bar state logic --
+    // -- Action line state logic --
     const isFirstTime = !search.lastCheckedAt && search.latestResults.length === 0;
     const isCoolingDown = cooldownLeft > 0 && !refreshing;
-    const isDisabled = refreshing || isCoolingDown;
-
-    let bridgeLabel: string;
-    let bridgeSub: string | null = null;
-    let bridgeIcon: React.ReactNode;
-
     const isUnpaid = !search.trackingPaid;
-
-    if (refreshing) {
-      bridgeLabel =
-        refreshPhase <= 1
-          ? "Searching flights..."
-          : refreshPhase === 2
-          ? "Comparing prices..."
-          : "Almost done...";
-      bridgeSub = "This usually takes a few seconds";
-      bridgeIcon = <ActivityIndicator size="small" color="#3B82F6" />;
-    } else if (isUnpaid && !isFirstTime) {
-      bridgeLabel = "Activate Price Tracking";
-      bridgeSub = search.trackingFee != null
-        ? `$${search.trackingFee.toFixed(2)} one-time`
-        : "Get automatic price updates";
-      bridgeIcon = <RefreshCycleIcon size={16} color="#F59E0B" />;
-    } else if (isCoolingDown) {
-      bridgeLabel = "Prices up to date";
-      bridgeSub = `Check again in ${formatCooldown(cooldownLeft)}`;
-      bridgeIcon = <CheckIcon size={16} color="#94A3B8" />;
-    } else if (isFirstTime) {
-      bridgeLabel = "Search for Flights";
-      bridgeSub = "Scan Google Flights for the best prices";
-      bridgeIcon = <SearchIcon size={16} color="#3B82F6" />;
-    } else {
-      bridgeLabel = "Check for New Prices";
-      bridgeIcon = <RefreshCycleIcon size={16} color="#3B82F6" />;
-    }
 
     return (
     <>
-      {/* Measurable billboard zone: navRow + route + price */}
+      {/* Measurable hero zone: nav + editorial price + route + action line */}
       <View onLayout={onHeroLayout}>
-        {/* Nav row: back + delete */}
+
+        {/* ---- Nav row: back + overflow ---- */}
         <View style={styles.navRow}>
           <BackButton />
           <Pressable
-            onPress={handleDelete}
-            hitSlop={8}
+            onPress={() => setOverflowVisible(true)}
+            hitSlop={10}
             style={({ pressed }) => [
-              styles.deleteBtn,
-              pressed && styles.deleteBtnPressed,
+              styles.overflowBtn,
+              pressed && styles.overflowBtnPressed,
             ]}
           >
-            <TrashIcon color="#EF4444" />
-            <Text style={styles.deleteLink}>Delete</Text>
+            <OverflowIcon color="#64748B" />
           </Pressable>
         </View>
 
-        {/* === BILLBOARD: raw typography on mesh, no container === */}
-
-        {/* Route codes with connecting line */}
-        <View style={styles.routeRow}>
+        {/* ---- Route hero ---- */}
+        <View style={styles.routeHero}>
           <Text style={styles.routeCode}>{search.origin}</Text>
           <View style={styles.routeArrowWrap}>
-            <View style={styles.routeLine} />
-            <View style={styles.routeArrowCircle}>
-              {isOneWay ? (
-                <ArrowIcon size={14} color="#3B82F6" />
-              ) : (
-                <View style={styles.roundTripArrows}>
-                  <ArrowIcon size={11} color="#3B82F6" />
-                  <View style={styles.returnArrow}>
-                    <ArrowIcon size={11} color="#3B82F6" />
-                  </View>
-                </View>
-              )}
-            </View>
-            <View style={styles.routeLine} />
+            <View style={styles.routeArrowLine} />
+            <View style={styles.routeArrowHead} />
           </View>
-          <Text style={[styles.routeCode, styles.routeCodeRight]}>
-            {search.destination}
+          <Text style={styles.routeCode}>{search.destination}</Text>
+        </View>
+
+        {/* ---- Price hero ---- */}
+        <View style={styles.priceRow}>
+          {search.cheapestPrice != null ? (
+            <Text style={styles.priceHero}>${search.cheapestPrice}</Text>
+          ) : (
+            <Text style={styles.priceHeroEmpty}>{"\u2014"}</Text>
+          )}
+        </View>
+
+        {/* ---- Meta line: dates, nights, trip type ---- */}
+        <View style={styles.metaRow}>
+          <Text style={styles.metaText}>
+            {formatDate(search.dateFrom)} {"\u2014"} {formatDate(search.dateTo)}
+          </Text>
+          {!isOneWay && search.minNights != null && (
+            <>
+              <View style={styles.metaDot} />
+              <Text style={styles.metaText}>
+                {search.minNights}–{search.maxNights} nights
+              </Text>
+            </>
+          )}
+          <View style={styles.metaDot} />
+          <Text style={styles.metaText}>
+            {isOneWay ? "one way" : "round trip"}
           </Text>
         </View>
 
-        {/* Trip type label */}
-        <Text style={styles.tripTypeLabel}>
-          {isOneWay ? "one way" : "round trip"}
-        </Text>
-
-        {/* Price -- the dominant element */}
-        <View style={styles.priceZone}>
-          {search.cheapestPrice != null ? (
-            <Text style={styles.priceHeroValue}>
-              ${search.cheapestPrice}
-            </Text>
-          ) : (
-            <Text style={styles.priceHeroEmpty}>No data yet</Text>
-          )}
-          <Text style={styles.priceHeroLabel}>cheapest found</Text>
-        </View>
-
-        {/* Meta line: dates + nights */}
-        <Text style={styles.metaLine}>
-          {formatDate(search.dateFrom)} {"\u2014"} {formatDate(search.dateTo)}
-          {!isOneWay && search.minNights != null
-            ? `  \u00B7  ${search.minNights}\u2013${search.maxNights} nights`
-            : ""}
-        </Text>
-
-        {/* Updated timestamp */}
-        {search.lastCheckedAt && (
-          <Text style={styles.updatedLabel}>
+        {/* ---- Updated timestamp ---- */}
+        {search.lastCheckedAt && !refreshing && (
+          <Text style={styles.updatedTimestamp}>
             Updated {timeAgo(search.lastCheckedAt)}
           </Text>
         )}
 
-        {/* Spacer before slab */}
-        <View style={styles.billboardSpacer} />
-      </View>{/* end billboard measurement zone */}
-
-      {/* === BRIDGE BAR: edge-to-edge tappable refresh bar === */}
-      {/* This visually "caps" the top of the strip slab and serves as the
-          transition from open billboard to dense data strips.
-          It sits outside the FloatingLayersContainer but uses the same
-          marginHorizontal: -20 trick to go edge-to-edge. */}
-      <Pressable
-        style={({ pressed }) => [
-          styles.bridgeBar,
-          isCoolingDown && styles.bridgeBarCooldown,
-          refreshing && styles.bridgeBarLoading,
-          pressed && !isDisabled && styles.bridgeBarPressed,
-        ]}
-        onPress={isUnpaid && !isFirstTime ? handleActivateTracking : handleRefresh}
-        disabled={isDisabled && !isUnpaid}
-      >
-        <View style={styles.bridgeBarInner}>
-          <View style={styles.bridgeBarLeft}>
-            {bridgeIcon}
-            <View style={styles.bridgeBarTextWrap}>
-              <Text
-                style={[
-                  styles.bridgeBarLabel,
-                  isCoolingDown && styles.bridgeBarLabelMuted,
-                  refreshing && styles.bridgeBarLabelActive,
-                ]}
-              >
-                {bridgeLabel}
+        {/* ---- Action line ---- */}
+        <View style={styles.actionLine}>
+          {refreshing ? (
+            <View style={styles.actionLineRow}>
+              <ActivityIndicator size="small" color="#2F9CF4" />
+              <Text style={styles.actionLineRefreshing}>
+                {refreshPhase <= 1
+                  ? "Searching flights..."
+                  : refreshPhase === 2
+                  ? "Comparing prices..."
+                  : "Almost done..."}
               </Text>
-              {bridgeSub && (
-                <Text style={styles.bridgeBarSub}>{bridgeSub}</Text>
-              )}
             </View>
-          </View>
-          {/* Right chevron hint (hidden during loading/cooldown) */}
-          {!refreshing && !isCoolingDown && (
-            <ArrowIcon size={12} color="#94A3B8" />
+          ) : isCoolingDown ? (
+            <View style={styles.actionLineRow}>
+              <CheckIcon size={12} color="#94A3B8" />
+              <Text style={styles.actionLineMuted}>
+                Prices up to date
+              </Text>
+              <View style={styles.actionDot} />
+              <Text style={styles.actionLineMuted}>
+                {formatCooldown(cooldownLeft)}
+              </Text>
+            </View>
+          ) : isFirstTime ? (
+            <Pressable
+              onPress={handleRefresh}
+              style={({ pressed }) => pressed && styles.actionLinePressed}
+            >
+              <View style={styles.actionLineRow}>
+                <SearchIcon size={13} color="#2F9CF4" />
+                <Text style={styles.actionLineTappable}>
+                  Search for flights
+                </Text>
+                <ArrowIcon size={10} color="#2F9CF4" />
+              </View>
+            </Pressable>
+          ) : isUnpaid ? (
+            <Pressable
+              onPress={() => {
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                setTrackingExpanded((prev) => !prev);
+              }}
+              style={({ pressed }) => [
+                styles.trackPriceBtn,
+                pressed && styles.trackPriceBtnPressed,
+              ]}
+            >
+              <RefreshCycleIcon size={16} color="#F59E0B" />
+              <Text style={styles.trackPriceBtnText}>
+                Track price changes
+              </Text>
+              <ArrowIcon size={10} color="#F59E0B" />
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={handleRefresh}
+              style={({ pressed }) => pressed && styles.actionLinePressed}
+            >
+              <View style={styles.actionLineRow}>
+                <Text style={styles.actionLineTappable}>
+                  Check prices
+                </Text>
+                <ArrowIcon size={10} color="#2F9CF4" />
+              </View>
+            </Pressable>
           )}
         </View>
-      </Pressable>
+
+        {/* ---- Inline tracking activation expansion ---- */}
+        {trackingExpanded && !search.trackingPaid && (
+          <View style={styles.trackingExpansion}>
+            <Text style={styles.trackingLabel}>
+              How long should we watch this route?
+            </Text>
+            <View style={styles.trackingChipsRow}>
+              {TRACKING_PRESETS.map((preset) => {
+                const credits = computeTrackingCredits(
+                  search.comboCount ?? search.latestResults.length,
+                  preset.days
+                );
+                const isSelected = selectedTrackingDays === preset.days;
+                return (
+                  <Pressable
+                    key={preset.days}
+                    onPress={() => setSelectedTrackingDays(preset.days)}
+                    style={[
+                      styles.trackingChip,
+                      isSelected && styles.trackingChipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.trackingChipText,
+                        isSelected && styles.trackingChipTextActive,
+                      ]}
+                    >
+                      {preset.label}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.trackingChipCredits,
+                        isSelected && styles.trackingChipCreditsActive,
+                      ]}
+                    >
+                      {credits} cr
+                    </Text>
+                  </Pressable>
+                );
+              })}
+              {/* "Until dep" chip */}
+              {(() => {
+                const depCredits = computeTrackingCredits(
+                  search.comboCount ?? search.latestResults.length,
+                  daysUntilDeparture
+                );
+                const isSelected = selectedTrackingDays === 0;
+                return (
+                  <Pressable
+                    onPress={() => setSelectedTrackingDays(0)}
+                    style={[
+                      styles.trackingChip,
+                      isSelected && styles.trackingChipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.trackingChipText,
+                        isSelected && styles.trackingChipTextActive,
+                      ]}
+                    >
+                      Until dep ({daysUntilDeparture}d)
+                    </Text>
+                    <Text
+                      style={[
+                        styles.trackingChipCredits,
+                        isSelected && styles.trackingChipCreditsActive,
+                      ]}
+                    >
+                      {depCredits} cr
+                    </Text>
+                  </Pressable>
+                );
+              })()}
+            </View>
+            <View style={styles.trackingActions}>
+              <Pressable
+                onPress={() => handleActivateTracking(selectedTrackingDays)}
+                disabled={activatingTracking}
+                style={({ pressed }) => [
+                  styles.activateBtn,
+                  pressed && styles.activateBtnPressed,
+                  activatingTracking && styles.activateBtnDisabled,
+                ]}
+              >
+                {activatingTracking ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.activateBtnText}>Start tracking</Text>
+                )}
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                  setTrackingExpanded(false);
+                }}
+                hitSlop={8}
+              >
+                <Text style={styles.trackingDismiss}>Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {/* Bottom spacer before results */}
+        <View style={styles.heroSpacer} />
+      </View>{/* end hero measurement zone */}
+
+      {/* ---- Hairline divider before results ---- */}
+      <View style={styles.sectionDivider} />
     </>
     );
-  }, [search, refreshing, onHeroLayout, cooldownLeft, refreshPhase]);
+  }, [search, refreshing, onHeroLayout, cooldownLeft, refreshPhase, trackingExpanded, selectedTrackingDays, activatingTracking, daysUntilDeparture]);
 
   // Native-driven scroll handler for 60fps animation
   const onScroll = useMemo(
@@ -785,6 +957,14 @@ export default function SearchDetailScreen() {
   );
 
   // ------------------------------------------------------------------
+  // Airline filter counts
+  // ------------------------------------------------------------------
+
+  const activeFilterCount = search?.filters?.airlines?.length ?? 0;
+  const totalAirlines = search?.availableAirlines?.length ?? 0;
+  const hasActiveFilter = activeFilterCount > 0 && activeFilterCount < totalAirlines;
+
+  // ------------------------------------------------------------------
   // Loading state
   // ------------------------------------------------------------------
 
@@ -794,7 +974,7 @@ export default function SearchDetailScreen() {
         <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
         <MeshBackground />
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#3B82F6" />
+          <ActivityIndicator size="large" color="#2F9CF4" />
         </View>
       </View>
     );
@@ -816,12 +996,8 @@ export default function SearchDetailScreen() {
   // Sticky header animation values
   // ------------------------------------------------------------------
 
-  // The scroll offset at which the hero is fully scrolled out of view.
-  // We subtract a small amount so the header starts appearing just before
-  // the hero fully disappears, creating a seamless hand-off.
   const triggerOffset = Math.max(heroHeight - 20, 0);
 
-  // Opacity: 0 while hero is visible, fades to 1 over STICKY_FADE_RANGE px
   const stickyOpacity = heroMeasured
     ? scrollY.interpolate({
         inputRange: [triggerOffset, triggerOffset + STICKY_FADE_RANGE],
@@ -830,7 +1006,6 @@ export default function SearchDetailScreen() {
       })
     : 0;
 
-  // Slide in from -8px to 0 over the same range
   const stickyTranslateY = heroMeasured
     ? scrollY.interpolate({
         inputRange: [triggerOffset, triggerOffset + STICKY_FADE_RANGE],
@@ -840,12 +1015,12 @@ export default function SearchDetailScreen() {
     : -8;
 
   // ------------------------------------------------------------------
-  // Reusable sticky header overlay (rendered above the FlatList)
+  // Sticky header overlay
   // ------------------------------------------------------------------
 
   const stickyHeaderOverlay = search ? (
     <>
-      {/* White safe-area inset band behind notch/status bar */}
+      {/* Safe-area band behind notch/status bar */}
       <Animated.View
         style={[
           stickyStyles.safeAreaBand,
@@ -854,7 +1029,7 @@ export default function SearchDetailScreen() {
         pointerEvents="none"
       />
 
-      {/* Sticky header bar */}
+      {/* Sticky header bar -- compact single line */}
       <Animated.View
         style={[
           stickyStyles.container,
@@ -864,12 +1039,10 @@ export default function SearchDetailScreen() {
             transform: [{ translateY: stickyTranslateY }],
           },
         ]}
-        // Disable touch events when header is invisible (opacity via native
-        // driver does not disable touches -- we track visibility in JS)
         pointerEvents={stickyVisible ? "auto" : "none"}
       >
         <View style={stickyStyles.inner}>
-          {/* Back chevron -- simple, no blur */}
+          {/* Back chevron */}
           <Pressable
             onPress={() => router.back()}
             hitSlop={12}
@@ -881,28 +1054,78 @@ export default function SearchDetailScreen() {
             <View style={stickyStyles.backChevron} />
           </Pressable>
 
-          {/* Center: route + meta */}
+          {/* Center: route + price + date in one line */}
           <View style={stickyStyles.center}>
-            <View style={stickyStyles.routeRow}>
-              <Text style={stickyStyles.routeCode}>{search.origin}</Text>
-              <ArrowIcon size={12} color="#94A3B8" />
-              <Text style={stickyStyles.routeCode}>{search.destination}</Text>
-            </View>
-            <Text style={stickyStyles.meta} numberOfLines={1}>
-              {formatDate(search.dateFrom)} {"\u2014"} {formatDate(search.dateTo)}
-              {search.cheapestPrice != null ? `  \u00B7  from $${search.cheapestPrice}` : ""}
+            <Text style={stickyStyles.summaryText} numberOfLines={1}>
+              {search.origin}
+              {" "}
+              <Text style={stickyStyles.summaryMuted}>{"\u2192"}</Text>
+              {" "}
+              {search.destination}
+              {search.cheapestPrice != null && (
+                <>
+                  {"  "}
+                  <Text style={stickyStyles.summaryMuted}>{"\u00B7"}</Text>
+                  {"  "}
+                  <Text style={stickyStyles.summaryPrice}>${search.cheapestPrice}</Text>
+                </>
+              )}
+              {"  "}
+              <Text style={stickyStyles.summaryMuted}>{"\u00B7"}</Text>
+              {"  "}
+              <Text style={stickyStyles.summaryMuted}>{formatDate(search.dateFrom)}</Text>
             </Text>
           </View>
 
-          {/* Right spacer to balance the back button for centered layout */}
-          <View style={stickyStyles.rightSpacer} />
+          {/* Overflow menu */}
+          <Pressable
+            onPress={() => setOverflowVisible(true)}
+            hitSlop={10}
+            style={({ pressed }) => [
+              stickyStyles.overflowBtn,
+              pressed && stickyStyles.overflowBtnPressed,
+            ]}
+          >
+            <OverflowIcon color="#94A3B8" />
+          </Pressable>
         </View>
 
-        {/* Bottom border for visual separation */}
         <View style={stickyStyles.borderLine} />
       </Animated.View>
     </>
   ) : null;
+
+  // ------------------------------------------------------------------
+  // Overflow menu modal
+  // ------------------------------------------------------------------
+
+  const overflowMenu = (
+    <Modal
+      visible={overflowVisible}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setOverflowVisible(false)}
+    >
+      <Pressable
+        style={styles.overflowBackdrop}
+        onPress={() => setOverflowVisible(false)}
+      >
+        <View style={[styles.overflowMenu, { top: insets.top + 52 }]}>
+          <Pressable
+            onPress={handleDelete}
+            style={({ pressed }) => [
+              styles.overflowMenuItem,
+              pressed && styles.overflowMenuItemPressed,
+            ]}
+          >
+            <TrashIcon color="#EF4444" />
+            <Text style={styles.overflowMenuItemText}>Delete search</Text>
+          </Pressable>
+        </View>
+      </Pressable>
+    </Modal>
+  );
+
 
   // ------------------------------------------------------------------
   // Empty results
@@ -914,30 +1137,27 @@ export default function SearchDetailScreen() {
         <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
         <MeshBackground />
         <View style={styles.safeArea}>
-          <Animated.FlatList
-            data={[]}
-            keyExtractor={() => "empty"}
-            ListHeaderComponent={listHeader}
-            ListEmptyComponent={
-              <View style={styles.emptyWrap}>
-                <View style={styles.emptyIconCircle}>
-                  <View style={styles.emptyDash} />
-                  <View style={[styles.emptyDash, styles.emptyDashShort]} />
-                </View>
-                <Text style={styles.emptyTitle}>No results yet</Text>
-                <Text style={styles.emptySubtitle}>
-                  Tap "Search for Flights" above to find the best prices
-                </Text>
-              </View>
-            }
-            renderItem={() => null}
+          <Animated.ScrollView
             contentContainerStyle={listContentStyle}
             showsVerticalScrollIndicator={false}
             scrollEventThrottle={16}
             onScroll={onScroll}
-          />
+          >
+            {listHeader}
+            <View style={styles.emptyWrap}>
+              <View style={styles.emptyIconCircle}>
+                <View style={styles.emptyDash} />
+                <View style={[styles.emptyDash, styles.emptyDashShort]} />
+              </View>
+              <Text style={styles.emptyTitle}>No results yet</Text>
+              <Text style={styles.emptySubtitle}>
+                Tap "Search for flights" above to find the best prices
+              </Text>
+            </View>
+          </Animated.ScrollView>
         </View>
         {stickyHeaderOverlay}
+        {overflowMenu}
       </View>
     );
   }
@@ -959,25 +1179,46 @@ export default function SearchDetailScreen() {
         >
           {listHeader}
           <FloatingLayersContainer>
-            {/* Results count + inline airline chip filter */}
+            {/* Results count + collapsible airline filter */}
             {search.latestResults.length > 0 && (
-              <>
-                <View style={styles.slabHeaderRow}>
+              <View style={styles.slabHeader}>
+                <View style={styles.slabTopRow}>
                   <Text style={styles.slabResultsLabel}>
-                    {search.latestResults.length} flight
-                    {search.latestResults.length !== 1 ? "s" : ""} found
+                    {hasActiveFilter
+                      ? `${search.latestResults.length} of ${search.comboCount ?? "?"} results`
+                      : `${search.latestResults.length} result${search.latestResults.length !== 1 ? "s" : ""}`}
                   </Text>
                   {updatingFilter && (
-                    <ActivityIndicator size="small" color="#3B82F6" />
+                    <ActivityIndicator size="small" color="#2F9CF4" />
+                  )}
+                  {totalAirlines > 1 && (
+                    <Pressable
+                      onPress={() => {
+                        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                        setAirlinesExpanded((prev) => !prev);
+                      }}
+                      hitSlop={8}
+                      style={({ pressed }) => [
+                        styles.filterToggle,
+                        pressed && { opacity: 0.6 },
+                      ]}
+                    >
+                      <Text style={styles.filterToggleText}>
+                        {hasActiveFilter
+                          ? `Airlines (${activeFilterCount}/${totalAirlines})`
+                          : "Airlines"}
+                      </Text>
+                      <View
+                        style={[
+                          styles.filterChevron,
+                          airlinesExpanded && styles.filterChevronUp,
+                        ]}
+                      />
+                    </Pressable>
                   )}
                 </View>
-                {(search.availableAirlines?.length ?? 0) > 1 && (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.chipRow}
-                    contentContainerStyle={styles.chipScrollContent}
-                  >
+                {airlinesExpanded && totalAirlines > 1 && (
+                  <View style={styles.airlineChipsRow}>
                     {search.availableAirlines.map((airline) => {
                       const activeFilter = search.filters?.airlines ?? [];
                       const isActive =
@@ -986,32 +1227,38 @@ export default function SearchDetailScreen() {
                       return (
                         <Pressable
                           key={airline}
-                          onPress={() => handleAirlineChipToggle(airline)}
-                          disabled={updatingFilter || refreshing}
+                          onPress={() => handleAirlineToggle(airline)}
+                          disabled={updatingFilter}
                           style={({ pressed }) => [
-                            styles.chip,
-                            isActive ? styles.chipActive : styles.chipInactive,
-                            pressed && styles.chipPressed,
+                            styles.airlineChip,
+                            !isActive && styles.airlineChipInactive,
+                            pressed && styles.airlineChipPressed,
                           ]}
                         >
                           <AirlineLogo airline={airline} logoUrl={logoUrl} size={16} />
                           <Text
                             style={[
-                              styles.chipText,
-                              isActive
-                                ? styles.chipTextActive
-                                : styles.chipTextInactive,
+                              styles.airlineChipText,
+                              !isActive && styles.airlineChipTextInactive,
                             ]}
-                            numberOfLines={1}
                           >
                             {airline}
                           </Text>
                         </Pressable>
                       );
                     })}
-                  </ScrollView>
+                    {hasActiveFilter && (
+                      <Pressable
+                        onPress={handleClearFilters}
+                        disabled={updatingFilter}
+                        hitSlop={8}
+                      >
+                        <Text style={styles.clearFilterText}>Show all</Text>
+                      </Pressable>
+                    )}
+                  </View>
                 )}
-              </>
+              </View>
             )}
 
             {/* Flight strips */}
@@ -1052,6 +1299,7 @@ export default function SearchDetailScreen() {
         </Animated.ScrollView>
       </View>
       {stickyHeaderOverlay}
+      {overflowMenu}
     </View>
   );
 }
@@ -1061,28 +1309,24 @@ export default function SearchDetailScreen() {
 // ---------------------------------------------------------------------------
 
 const stickyStyles = StyleSheet.create({
-  // White band covering the safe area inset (notch / status bar area)
   safeAreaBand: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FAFCFF",
     zIndex: 101,
   },
-  // Header container positioned just below the safe area inset
   container: {
     position: "absolute",
     left: 0,
     right: 0,
     height: STICKY_HEADER_HEIGHT,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FAFCFF",
     zIndex: 100,
-    // Shadow only casts downward -- offset pushes it below the header
-    // so no bleed upward into the safe area band
     shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.04,
     shadowRadius: 6,
     elevation: 3,
   },
@@ -1092,16 +1336,14 @@ const stickyStyles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
   },
-  // Subtle bottom border
   borderLine: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: "#E2E8F0",
   },
-  // Simple back chevron -- no glassmorphic blur, just a clean tap target
   backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1109,45 +1351,47 @@ const stickyStyles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.05)",
   },
   backChevron: {
-    width: 10,
-    height: 10,
-    borderLeftWidth: 2.5,
-    borderBottomWidth: 2.5,
+    width: 9,
+    height: 9,
+    borderLeftWidth: 2,
+    borderBottomWidth: 2,
     borderColor: "#0F172A",
     transform: [{ rotate: "45deg" }],
-    marginLeft: 3, // visually center the chevron within the circle
+    marginLeft: 3,
   },
-  // Center content block
   center: {
     flex: 1,
     alignItems: "center",
+    paddingHorizontal: 8,
   },
-  routeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  routeCode: {
-    fontFamily: fonts.extraBold,
-    fontSize: 16,
+  summaryText: {
+    fontFamily: fonts.semiBold,
+    fontSize: 14,
     color: "#0F172A",
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
   },
-  meta: {
-    fontFamily: fonts.medium,
-    fontSize: 12,
+  summaryMuted: {
+    fontFamily: fonts.regular,
     color: "#94A3B8",
-    marginTop: 1,
-    letterSpacing: -0.1,
   },
-  // Right spacer matches back button width for centered layout
-  rightSpacer: {
-    width: 40,
+  summaryPrice: {
+    fontFamily: fonts.bold,
+    color: "#0F172A",
+  },
+  overflowBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  overflowBtnPressed: {
+    backgroundColor: "rgba(0, 0, 0, 0.05)",
   },
 });
 
 // ---------------------------------------------------------------------------
-// Styles
+// Main styles
 // ---------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
@@ -1174,243 +1418,404 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingTop: 8,
-    marginBottom: 24,
+    marginBottom: 12,
   },
-  deleteBtn: {
-    flexDirection: "row",
+  overflowBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: "rgba(239, 68, 68, 0.08)",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
     borderWidth: 1,
-    borderColor: "rgba(239, 68, 68, 0.15)",
+    borderColor: "rgba(255, 255, 255, 0.6)",
   },
-  deleteBtnPressed: {
-    backgroundColor: "rgba(239, 68, 68, 0.15)",
-    transform: [{ scale: 0.96 }],
-  },
-  deleteLink: {
-    fontFamily: fonts.semiBold,
-    fontSize: 13,
-    color: "#EF4444",
+  overflowBtnPressed: {
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
+    transform: [{ scale: 0.95 }],
   },
 
-  // ---- Billboard: raw typography on mesh, no container ----
+  // ---- Route hero (type.heading1: 24px ExtraBold) ----
 
-  // Route codes
-  routeRow: {
+  routeHero: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 4,
+    justifyContent: "center",
+    marginBottom: 8,
   },
   routeCode: {
     fontFamily: fonts.extraBold,
-    fontSize: 38,
+    fontSize: 28,
     color: "#0F172A",
-    letterSpacing: -1.2,
-  },
-  routeCodeRight: {
-    textAlign: "right",
+    letterSpacing: -0.8,
+    lineHeight: 32,
   },
   routeArrowWrap: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
+    marginHorizontal: 12,
   },
-  routeLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "rgba(148, 163, 184, 0.25)",
-  },
-  routeArrowCircle: {
+  routeArrowLine: {
     width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(59, 130, 246, 0.06)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginHorizontal: 6,
-    borderWidth: 1,
-    borderColor: "rgba(59, 130, 246, 0.1)",
+    height: 1.5,
+    backgroundColor: "#CBD5E1",
   },
-  roundTripArrows: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-  },
-  returnArrow: {
-    transform: [{ rotate: "180deg" }],
+  routeArrowHead: {
+    width: 7,
+    height: 7,
+    borderRightWidth: 1.5,
+    borderTopWidth: 1.5,
+    borderColor: "#CBD5E1",
+    transform: [{ rotate: "45deg" }],
+    marginLeft: -4,
   },
 
-  // Trip type label
-  tripTypeLabel: {
+  // ---- Price hero (type.hero: 36px ExtraBold) ----
+
+  priceRow: {
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  priceHero: {
+    fontFamily: fonts.extraBold,
+    fontSize: 42,
+    color: "#0F172A",
+    letterSpacing: -1.5,
+    lineHeight: 46,
+  },
+  priceHeroEmpty: {
+    fontFamily: fonts.extraBold,
+    fontSize: 42,
+    color: "#CBD5E1",
+    letterSpacing: -1.5,
+    lineHeight: 46,
+  },
+
+  // ---- Meta row (single line below price) ----
+
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  metaText: {
+    fontFamily: fonts.medium,
+    fontSize: 15,
+    color: "#64748B",
+    letterSpacing: 0.1,
+  },
+  metaDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: "#CBD5E1",
+    marginHorizontal: 8,
+  },
+
+  // ---- Updated timestamp (type.micro) ----
+  updatedTimestamp: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: "#94A3B8",
+    letterSpacing: -0.1,
+    lineHeight: 16,
+    marginBottom: 4,
+    textAlign: "center",
+  },
+
+  // ---- Action line: single compact tappable row ----
+
+  actionLine: {
+    marginBottom: 4,
+    minHeight: 44,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  actionLineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  actionLinePressed: {
+    opacity: 0.6,
+  },
+  actionLineMuted: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: "#94A3B8",
+    letterSpacing: -0.1,
+  },
+  actionLineTappable: {
+    fontFamily: fonts.medium,
+    fontSize: 14,
+    color: "#2F9CF4",
+  },
+  actionLineAmber: {
+    fontFamily: fonts.medium,
+    fontSize: 14,
+    color: "#F59E0B",
+  },
+
+  // ---- Track price CTA button (warm accent, inviting) ----
+
+  trackPriceBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(245, 158, 11, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.2)",
+    minHeight: 44,
+  },
+  trackPriceBtnPressed: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    transform: [{ scale: 0.97 }],
+  },
+  trackPriceBtnText: {
+    fontFamily: fonts.semiBold,
+    fontSize: 15,
+    color: "#D97706",
+    flex: 1,
+  },
+  actionLineRefreshing: {
+    fontFamily: fonts.medium,
+    fontSize: 14,
+    color: "#1A7ED4",
+  },
+  actionDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: "#CBD5E1",
+  },
+
+  // ---- Inline tracking activation expansion ----
+
+  trackingExpansion: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(148, 163, 184, 0.2)",
+    alignItems: "center",
+  },
+  trackingLabel: {
+    fontFamily: fonts.semiBold,
+    fontSize: 15,
+    color: "#0F172A",
+    letterSpacing: 0.1,
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  trackingChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 14,
+  },
+  trackingChip: {
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: "rgba(148, 163, 184, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.15)",
+    gap: 2,
+  },
+  trackingChipActive: {
+    backgroundColor: "rgba(47, 156, 244, 0.1)",
+    borderColor: "rgba(47, 156, 244, 0.3)",
+  },
+  trackingChipText: {
     fontFamily: fonts.medium,
     fontSize: 13,
     color: "#94A3B8",
-    letterSpacing: 0.3,
-    marginBottom: 28,
   },
-
-  // Price zone -- the dominant element on the billboard
-  priceZone: {
-    marginBottom: 14,
-  },
-  priceHeroValue: {
-    fontFamily: fonts.extraBold,
-    fontSize: 52,
-    color: "#0F172A",
-    letterSpacing: -2,
-    lineHeight: 56,
-  },
-  priceHeroLabel: {
+  trackingChipTextActive: {
+    color: "#2F9CF4",
     fontFamily: fonts.semiBold,
+  },
+  trackingChipCredits: {
+    fontFamily: fonts.medium,
     fontSize: 11,
     color: "#94A3B8",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginTop: 4,
+    letterSpacing: 0.1,
   },
-  priceHeroEmpty: {
-    fontFamily: fonts.regularItalic,
-    fontSize: 20,
+  trackingChipCreditsActive: {
+    color: "#2F9CF4",
+  },
+  trackingActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  activateBtn: {
+    backgroundColor: "#2F9CF4",
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activateBtnPressed: {
+    backgroundColor: "#1A7ED4",
+    transform: [{ scale: 0.97 }],
+  },
+  activateBtnDisabled: {
+    opacity: 0.6,
+  },
+  activateBtnText: {
+    fontFamily: fonts.bold,
+    fontSize: 14,
+    color: "#FFFFFF",
+    letterSpacing: 0.1,
+  },
+  trackingDismiss: {
+    fontFamily: fonts.medium,
+    fontSize: 13,
     color: "#94A3B8",
   },
 
-  // Meta line: dates + nights
-  metaLine: {
-    fontFamily: fonts.regular,
-    fontSize: 14,
-    color: "#64748B",
-    marginBottom: 6,
+  // ---- Hero spacer ----
+  heroSpacer: {
+    height: 16,
   },
 
-  // Updated timestamp
-  updatedLabel: {
-    fontFamily: fonts.medium,
-    fontSize: 12,
-    color: "#CBD5E1",
+  // ---- Section divider ----
+  sectionDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#E2E8F0",
+    marginHorizontal: -20, // edge-to-edge
+    marginBottom: 0,
   },
 
-  // Spacer between billboard and bridge bar
-  billboardSpacer: {
-    height: 24,
-  },
-
-  // ---- Bridge Bar: edge-to-edge tappable refresh bar ----
-  // Caps the top of the strip slab. Uses negative margin to go edge-to-edge.
-  bridgeBar: {
-    marginHorizontal: -20,
-    backgroundColor: "rgba(59, 130, 246, 0.05)",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(59, 130, 246, 0.1)",
-  },
-  bridgeBarPressed: {
-    backgroundColor: "rgba(59, 130, 246, 0.1)",
-  },
-  bridgeBarCooldown: {
-    backgroundColor: "rgba(148, 163, 184, 0.05)",
-    borderColor: "rgba(148, 163, 184, 0.1)",
-  },
-  bridgeBarLoading: {
-    backgroundColor: "rgba(59, 130, 246, 0.07)",
-  },
-  bridgeBarInner: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  // ---- Slab header: results count + inline airline chips ----
+  slabHeader: {
     paddingHorizontal: 20,
-    paddingVertical: 14,
-    // 44pt minimum touch target per iOS HIG
-    minHeight: 44,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
-  bridgeBarLeft: {
+  slabTopRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    flex: 1,
-  },
-  bridgeBarTextWrap: {
-    flex: 1,
-  },
-  bridgeBarLabel: {
-    fontFamily: fonts.semiBold,
-    fontSize: 14,
-    color: "#3B82F6",
-    letterSpacing: -0.1,
-  },
-  bridgeBarLabelMuted: {
-    color: "#94A3B8",
-  },
-  bridgeBarLabelActive: {
-    color: "#2563EB",
-  },
-  bridgeBarSub: {
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    color: "#94A3B8",
-    marginTop: 1,
-  },
-
-  // ---- Slab header: results count + filter (inside FloatingLayersContainer) ----
-  slabHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(148, 163, 184, 0.15)",
+    marginBottom: 10,
   },
   slabResultsLabel: {
     fontFamily: fonts.semiBold,
     fontSize: 12,
     color: "#64748B",
     letterSpacing: 0.2,
+    flex: 1,
   },
-  // ---- Airline chip filter row ----
-  chipRow: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(148, 163, 184, 0.15)",
-  },
-  chipScrollContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 8,
-  },
-  chip: {
+  filterToggle: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: "rgba(148, 163, 184, 0.08)",
   },
-  chipActive: {
-    backgroundColor: "rgba(219, 234, 254, 0.6)",
-    borderColor: "rgba(147, 197, 253, 0.5)",
-  },
-  chipInactive: {
-    backgroundColor: "rgba(148, 163, 184, 0.06)",
-    borderColor: "rgba(148, 163, 184, 0.15)",
-  },
-  chipPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.96 }],
-  },
-  chipText: {
+  filterToggleText: {
     fontFamily: fonts.semiBold,
     fontSize: 12,
+    color: "#64748B",
   },
-  chipTextActive: {
-    color: "#3B82F6",
+  filterChevron: {
+    width: 6,
+    height: 6,
+    borderRightWidth: 1.5,
+    borderBottomWidth: 1.5,
+    borderColor: "#64748B",
+    transform: [{ rotate: "45deg" }],
+    marginTop: -2,
   },
-  chipTextInactive: {
+  filterChevronUp: {
+    transform: [{ rotate: "-135deg" }],
+    marginTop: 2,
+  },
+  clearFilterText: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: "#2F9CF4",
+    paddingVertical: 7,
+  },
+  airlineChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  airlineChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+    backgroundColor: "rgba(47, 156, 244, 0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(47, 156, 244, 0.15)",
+  },
+  airlineChipInactive: {
+    backgroundColor: "rgba(148, 163, 184, 0.06)",
+    borderColor: "rgba(148, 163, 184, 0.15)",
+    opacity: 0.5,
+  },
+  airlineChipPressed: {
+    transform: [{ scale: 0.96 }],
+  },
+  airlineChipText: {
+    fontFamily: fonts.semiBold,
+    fontSize: 12,
+    color: "#1A7ED4",
+    letterSpacing: -0.1,
+  },
+  airlineChipTextInactive: {
     color: "#94A3B8",
+    fontFamily: fonts.medium,
+  },
+
+  // ---- Overflow menu ----
+  overflowBackdrop: {
+    flex: 1,
+  },
+  overflowMenu: {
+    position: "absolute",
+    right: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 8,
+    minWidth: 180,
+  },
+  overflowMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 8,
+    // 44pt minimum touch target per iOS HIG
+    minHeight: 44,
+  },
+  overflowMenuItemPressed: {
+    backgroundColor: "rgba(239, 68, 68, 0.06)",
+  },
+  overflowMenuItemText: {
+    fontFamily: fonts.medium,
+    fontSize: 15,
+    color: "#EF4444",
   },
 
   // ---- Empty state ----

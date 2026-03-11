@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { View, Text, Animated, StyleSheet } from "react-native";
-import { fonts } from "../../utils/fonts";
+import { fonts } from "../../theme";
 import { LinearGradient } from "expo-linear-gradient";
+import { Plane } from "lucide-react-native";
 
 interface SearchingOverlayProps {
   origin: string;
@@ -93,7 +94,7 @@ export default function SearchingOverlay({
             colors={["#60A5FA", "#3B82F6"]}
             style={styles.planeCircle}
           >
-            <Text style={styles.planeEmoji}>✈</Text>
+            <Plane size={16} color="#FFFFFF" strokeWidth={2} />
           </LinearGradient>
         </Animated.View>
       </View>

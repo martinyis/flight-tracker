@@ -10,9 +10,9 @@ import {
   Dimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import AppButton from "../AppButton";
-import AirlineLogo from "../AirlineLogo";
-import { fonts } from "../../utils/fonts";
+import AppButton from "../ui/AppButton";
+import AirlineLogo from "../ui/AirlineLogo";
+import { fonts } from "../../theme";
 
 // ---------------------------------------------------------------------------
 // Layout constants

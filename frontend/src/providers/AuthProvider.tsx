@@ -6,15 +6,14 @@ import {
   ReactNode,
 } from "react";
 import * as SecureStore from "expo-secure-store";
-import api from "../api/client";
+import api from "../lib/api/client";
 
 interface AuthState {
   token: string | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
   loginWithToken: (token: string) => Promise<void>;
   logout: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -31,20 +30,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const res = await api.post("/auth/login", { email, password });
-    const { token: newToken } = res.data;
-    await SecureStore.setItemAsync("auth_token", newToken);
-    setToken(newToken);
-  };
-
-  const register = async (email: string, password: string) => {
-    const res = await api.post("/auth/register", { email, password });
-    const { token: newToken } = res.data;
-    await SecureStore.setItemAsync("auth_token", newToken);
-    setToken(newToken);
-  };
-
   const loginWithToken = async (newToken: string) => {
     await SecureStore.setItemAsync("auth_token", newToken);
     setToken(newToken);
@@ -55,8 +40,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
   };
 
+  const deleteAccount = async () => {
+    await api.delete("/auth/me");
+    await SecureStore.deleteItemAsync("auth_token");
+    setToken(null);
+  };
+
   return (
-    <AuthContext.Provider value={{ token, isLoading, login, register, loginWithToken, logout }}>
+    <AuthContext.Provider value={{ token, isLoading, loginWithToken, logout, deleteAccount }}>
       {children}
     </AuthContext.Provider>
   );

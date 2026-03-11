@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { View, Text, Animated, Easing, StyleSheet, Dimensions } from "react-native";
 import Svg, { Path, Defs, LinearGradient as SvgGrad, Stop } from "react-native-svg";
-import { fonts } from "../utils/fonts";
+import { fonts } from "../../theme";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 

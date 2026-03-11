@@ -7,12 +7,12 @@ import {
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import AirlineLogo from "./AirlineLogo";
-import { fonts } from "../utils/fonts";
+import AirlineLogo from "../ui/AirlineLogo";
+import { fonts } from "../../theme";
 import {
   buildDeepLinkFromFlights,
   buildGoogleFlightsSearchUrl,
-} from "../utils/googleFlightsUrl";
+} from "../../lib/utils/googleFlightsUrl";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -326,7 +326,6 @@ const cheapestStyles = StyleSheet.create({
 
 function openBookingLink(opts: {
   outbound: FlightLeg;
-  returnLeg?: FlightLeg;
   origin: string;
   destination: string;
 }) {
@@ -344,28 +343,13 @@ function openBookingLink(opts: {
           arrival_airport: { id: string };
         }>,
       },
-      returnLeg: opts.returnLeg?.flights?.length
-        ? {
-            date: opts.returnLeg.date,
-            flights: opts.returnLeg.flights as Array<{
-              flight_number: string;
-              departure_airport: { id: string };
-              arrival_airport: { id: string };
-            }>,
-          }
-        : undefined,
       origin: opts.origin,
       destination: opts.destination,
     });
     Linking.openURL(url);
   } else {
     Linking.openURL(
-      buildFallbackUrl(
-        opts.origin,
-        opts.destination,
-        opts.outbound.date,
-        opts.returnLeg?.date
-      )
+      buildFallbackUrl(opts.origin, opts.destination, opts.outbound.date)
     );
   }
 }
@@ -386,12 +370,14 @@ function RoundTripBookBtn({
         pressed && bookBtnStyles.pressed,
       ]}
       onPress={() =>
-        openBookingLink({
-          outbound: combo.outbound,
-          returnLeg: combo.return,
-          origin,
-          destination,
-        })
+        Linking.openURL(
+          buildGoogleFlightsSearchUrl(
+            origin,
+            destination,
+            combo.outbound.date,
+            combo.return.date
+          )
+        )
       }
     >
       <Text style={bookBtnStyles.text}>Book on Google Flights</Text>

@@ -7,7 +7,7 @@
  * the values here.
  *
  * Usage:
- *   import { fonts } from "../utils/fonts";
+ *   import { fonts } from "@/theme";
  *   // in StyleSheet:
  *   title: { fontFamily: fonts.bold, fontSize: 28 }
  *

@@ -10,6 +10,14 @@ export interface AirportSelection {
   city: string;
 }
 
+export interface ApiFiltersForm {
+  stops?: 1 | 2;        // 1=Nonstop, 2=1 stop or fewer (omit=any)
+  airlineMode?: "include" | "exclude";
+  airlines?: string;    // comma-separated IATA codes
+  maxDuration?: number; // minutes
+  bags?: boolean;       // true = carry-on included
+}
+
 export interface WizardFormData {
   tripType: TripType;
   origin: AirportSelection | null;
@@ -18,6 +26,7 @@ export interface WizardFormData {
   dateTo: Date;
   minNights: string;
   maxNights: string;
+  apiFilters: ApiFiltersForm;
 }
 
 export interface SearchResult {

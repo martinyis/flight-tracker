@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import * as AppleAuthentication from "expo-apple-authentication";
-import api from "../api/client";
+import api from "../lib/api/client";
 
 interface UseAppleAuthReturn {
   signIn: () => Promise<void>;

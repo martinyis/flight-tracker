@@ -1,11 +1,11 @@
-import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
 import appleSignin from "apple-signin-auth";
 import prisma from "../config/db";
 import { User } from "../generated/prisma/client";
+import { grantSignupBonus } from "./creditService";
+import { UnauthorizedError } from "../errors/AppError";
 
-const SALT_ROUNDS = 10;
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 function getJwtSecret(): string {
@@ -22,68 +22,6 @@ export function verifyToken(token: string): { userId: string } {
   return jwt.verify(token, getJwtSecret()) as { userId: string };
 }
 
-export async function registerUser(
-  email: string,
-  password: string
-): Promise<{ user: User; token: string }> {
-  const existing = await prisma.user.findUnique({
-    where: { email: email.toLowerCase().trim() },
-  });
-  if (existing) {
-    const error = new Error("Email already registered") as Error & {
-      statusCode?: number;
-    };
-    error.statusCode = 409;
-    throw error;
-  }
-
-  const hash = await bcrypt.hash(password, SALT_ROUNDS);
-  const user = await prisma.user.create({
-    data: {
-      email: email.toLowerCase().trim(),
-      password: hash,
-    },
-  });
-  const token = generateToken(String(user.id));
-  return { user, token };
-}
-
-export async function loginUser(
-  email: string,
-  password: string
-): Promise<{ user: User; token: string }> {
-  const user = await prisma.user.findUnique({
-    where: { email: email.toLowerCase().trim() },
-  });
-  if (!user) {
-    const error = new Error("Invalid email or password") as Error & {
-      statusCode?: number;
-    };
-    error.statusCode = 401;
-    throw error;
-  }
-
-  if (!user.password) {
-    const error = new Error(
-      "This account uses Google Sign-In. Please sign in with Google."
-    ) as Error & { statusCode?: number };
-    error.statusCode = 401;
-    throw error;
-  }
-
-  const match = await bcrypt.compare(password, user.password);
-  if (!match) {
-    const error = new Error("Invalid email or password") as Error & {
-      statusCode?: number;
-    };
-    error.statusCode = 401;
-    throw error;
-  }
-
-  const token = generateToken(String(user.id));
-  return { user, token };
-}
-
 export async function appleAuth(
   identityToken: string
 ): Promise<{ user: User; token: string }> {
@@ -93,11 +31,7 @@ export async function appleAuth(
   });
 
   if (!payload || !payload.sub) {
-    const error = new Error("Invalid Apple token") as Error & {
-      statusCode?: number;
-    };
-    error.statusCode = 401;
-    throw error;
+    throw new UnauthorizedError("Invalid Apple token");
   }
 
   const appleId = payload.sub;
@@ -125,6 +59,7 @@ export async function appleAuth(
       user = await prisma.user.create({
         data: { email: email ?? `apple_${appleId}@privaterelay.appleid.com`, appleId },
       });
+      await grantSignupBonus(user.id);
     }
   }
 
@@ -146,11 +81,7 @@ export async function googleAuth(
 
   const payload = ticket.getPayload();
   if (!payload || !payload.email) {
-    const error = new Error("Invalid Google token") as Error & {
-      statusCode?: number;
-    };
-    error.statusCode = 401;
-    throw error;
+    throw new UnauthorizedError("Invalid Google token");
   }
 
   const { sub: googleId, email: rawEmail } = payload;
@@ -173,6 +104,7 @@ export async function googleAuth(
       user = await prisma.user.create({
         data: { email, googleId },
       });
+      await grantSignupBonus(user.id);
     }
   }
 

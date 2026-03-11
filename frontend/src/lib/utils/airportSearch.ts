@@ -1,4 +1,4 @@
-import airports, { Airport, COUNTRY_NAMES } from "../data/airports";
+import airports, { Airport, COUNTRY_NAMES } from "../../data/airports";
 
 /**
  * Pre-built lowercase search index for fast matching.
@@ -27,6 +27,51 @@ const INDEX: IndexedAirport[] = airports.map((a) => ({
 
 const POPULAR_AIRPORTS: Airport[] = airports.filter((a) => a.popular);
 
+// ---------------------------------------------------------------------------
+// Top-tier popular airports -- 18 globally recognized hubs
+// Curated for maximum usefulness on the default screen.
+// ---------------------------------------------------------------------------
+
+const TOP_POPULAR_IATAS = new Set([
+  "JFK", // New York
+  "LAX", // Los Angeles
+  "ORD", // Chicago
+  "MIA", // Miami
+  "SFO", // San Francisco
+  "LHR", // London Heathrow
+  "CDG", // Paris Charles de Gaulle
+  "FCO", // Rome Fiumicino
+  "BCN", // Barcelona
+  "AMS", // Amsterdam
+  "FRA", // Frankfurt
+  "DXB", // Dubai
+  "SIN", // Singapore
+  "HND", // Tokyo Haneda
+  "ICN", // Seoul Incheon
+  "BKK", // Bangkok
+  "SYD", // Sydney
+  "YYZ", // Toronto
+]);
+
+/**
+ * Ordered list of the 18 top-tier airports shown when the search input is
+ * empty. Maintains the insertion order of TOP_POPULAR_IATAS for a stable,
+ * curated sort (roughly: US, Europe, Middle East, Asia, Oceania, Canada).
+ */
+const TOP_POPULAR: Airport[] = (() => {
+  const byIata = new Map<string, Airport>();
+  for (const a of airports) {
+    if (TOP_POPULAR_IATAS.has(a.iata)) byIata.set(a.iata, a);
+  }
+  // Return in curated insertion order
+  const result: Airport[] = [];
+  for (const iata of TOP_POPULAR_IATAS) {
+    const ap = byIata.get(iata);
+    if (ap) result.push(ap);
+  }
+  return result;
+})();
+
 // Pre-built IATA -> Airport lookup for O(1) city name resolution
 const IATA_MAP = new Map<string, Airport>();
 for (const a of airports) {
@@ -38,9 +83,17 @@ export function getCityByIata(iata: string): string {
   return IATA_MAP.get(iata.toUpperCase())?.city ?? iata;
 }
 
-/** Returns the list of popular airports (for empty-state display) */
+/**
+ * Returns the full list of popular airports (54 airports marked popular).
+ * Prefer `getTopPopularAirports()` for UI display.
+ */
 export function getPopularAirports(): Airport[] {
   return POPULAR_AIRPORTS;
+}
+
+/** Returns the curated 18 top-tier airports for the empty-state default list */
+export function getTopPopularAirports(): Airport[] {
+  return TOP_POPULAR;
 }
 
 /** Returns the human-readable country name for an ISO code */

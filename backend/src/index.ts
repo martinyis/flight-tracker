@@ -5,6 +5,7 @@ import { errorHandler } from "./middleware/errorHandler";
 import { authenticate } from "./middleware/auth";
 import authRoutes from "./routes/auth";
 import searchRoutes from "./routes/search";
+import creditsRoutes from "./routes/credits";
 import { startPriceCheckCron } from "./workers/priceCheckWorker";
 
 const app = express();
@@ -15,6 +16,7 @@ app.use(express.json());
 
 app.use("/api/auth", authRoutes);
 app.use("/api/search", authenticate, searchRoutes);
+app.use("/api/credits", authenticate, creditsRoutes);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });

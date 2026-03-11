@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { View, Image, Text, StyleSheet } from "react-native";
-import { fonts } from "../utils/fonts";
+import { fonts } from "../../theme";
 
 // ---------------------------------------------------------------------------
 // Props

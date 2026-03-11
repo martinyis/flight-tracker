@@ -1,5 +1,5 @@
 import { Text, Pressable, View, ActivityIndicator, StyleSheet } from "react-native";
-import { fonts } from "../utils/fonts";
+import { fonts } from "../../theme";
 
 interface AppButtonProps {
   label: string;

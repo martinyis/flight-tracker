@@ -1,11 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { View, Text, Pressable, Animated, Easing, StyleSheet } from "react-native";
 import { BlurView } from "expo-blur";
-import AirlineLogo from "./AirlineLogo";
-import { RouteArrowLine } from "./RouteArrow";
-import { getCityByIata } from "../utils/airportSearch";
-import { timeAgo } from "../utils/time";
-import { fonts } from "../utils/fonts";
+import AirlineLogo from "../ui/AirlineLogo";
+import { RouteArrowLine } from "../ui/RouteArrow";
+import { getCityByIata } from "../../lib/utils/airportSearch";
+import { timeAgo } from "../../lib/utils/time";
+import { fonts } from "../../theme";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -23,8 +23,12 @@ export interface FlightPanelData {
   active: boolean;
   lastCheckedAt: string | null;
   cheapestPrice: number | null;
+  trackingActive?: boolean;
+  trackingDays?: number | null;
+  trackingStartedAt?: string | null;
   resultCount: number;
   airlineLogos: Record<string, string>;
+  priceHistory: { date: string; cheapestPrice: number }[];
 }
 
 interface FlightPanelProps {
@@ -114,6 +118,22 @@ export default function FlightPanel({
   const logoEntries = Object.entries(data.airlineLogos);
   const bgTint = PANEL_TINTS[Math.min(index, PANEL_TINTS.length - 1)];
 
+  // Price trend delta
+  const priceDelta = useMemo(() => {
+    const history = data.priceHistory;
+    if (!history || history.length < 2 || data.cheapestPrice == null) return null;
+
+    const firstPrice = history[0].cheapestPrice;
+    const currentPrice = data.cheapestPrice;
+    const diff = currentPrice - firstPrice;
+
+    if (diff === 0) return { direction: "stable" as const, amount: 0 };
+    return {
+      direction: diff < 0 ? ("down" as const) : ("up" as const),
+      amount: Math.abs(diff),
+    };
+  }, [data.priceHistory, data.cheapestPrice]);
+
   // Entrance animation with stagger
   const enterAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -189,7 +209,31 @@ export default function FlightPanel({
             <View style={styles.priceSection}>
               {data.cheapestPrice != null ? (
                 <>
-                  <Text style={styles.priceValue}>${data.cheapestPrice}</Text>
+                  <View style={styles.priceRow}>
+                    <Text style={styles.priceValue}>${data.cheapestPrice}</Text>
+                    {priceDelta && priceDelta.direction !== "stable" && (
+                      <View
+                        style={[
+                          styles.deltaPill,
+                          priceDelta.direction === "down"
+                            ? styles.deltaPillDown
+                            : styles.deltaPillUp,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.deltaText,
+                            priceDelta.direction === "down"
+                              ? styles.deltaTextDown
+                              : styles.deltaTextUp,
+                          ]}
+                        >
+                          {priceDelta.direction === "down" ? "\u2193" : "\u2191"} $
+                          {priceDelta.amount}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={styles.priceLabel}>cheapest found</Text>
                 </>
               ) : (
@@ -238,6 +282,15 @@ export default function FlightPanel({
               {!data.active && (
                 <View style={styles.pausedPill}>
                   <Text style={styles.pausedPillText}>Paused</Text>
+                </View>
+              )}
+              {data.trackingActive && data.trackingDays != null && data.trackingStartedAt != null && (
+                <View style={styles.trackingPill}>
+                  <Text style={styles.trackingPillText}>
+                    {Math.max(0, Math.ceil(
+                      (new Date(data.trackingStartedAt).getTime() + data.trackingDays * 86_400_000 - Date.now()) / 86_400_000
+                    ))}d tracking
+                  </Text>
                 </View>
               )}
             </View>
@@ -365,6 +418,36 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginTop: 2,
   },
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  deltaPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  deltaPillDown: {
+    backgroundColor: "rgba(34, 197, 94, 0.08)",
+    borderColor: "rgba(34, 197, 94, 0.2)",
+  },
+  deltaPillUp: {
+    backgroundColor: "rgba(239, 68, 68, 0.08)",
+    borderColor: "rgba(239, 68, 68, 0.2)",
+  },
+  deltaText: {
+    fontFamily: fonts.semiBold,
+    fontSize: 13,
+    letterSpacing: -0.2,
+  },
+  deltaTextDown: {
+    color: "#16A34A",
+  },
+  deltaTextUp: {
+    color: "#EF4444",
+  },
   priceSearching: {
     fontFamily: fonts.medium,
     fontSize: 20,
@@ -431,6 +514,18 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#94A3B8",
     textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  trackingPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    backgroundColor: "rgba(219, 234, 254, 0.8)",
+  },
+  trackingPillText: {
+    fontFamily: fonts.semiBold,
+    fontSize: 10,
+    color: "#3B82F6",
     letterSpacing: 0.3,
   },
 });

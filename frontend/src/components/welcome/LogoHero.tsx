@@ -9,7 +9,7 @@ import { useEffect, useRef } from "react";
 import { Animated, Easing, Image, StyleSheet, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
-const LOGO = require("../assets/images/this-is-way-better---the-plane-is-there--the-arc-w.png");
+const LOGO = require("../../assets/images/this-is-way-better---the-plane-is-there--the-arc-w.png");
 
 // Small floating accent dot
 function Dot({

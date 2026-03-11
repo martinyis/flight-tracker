@@ -7,7 +7,7 @@
  * Works for both one-way and round-trip flights.
  */
 
-import { AIRPORT_KG_IDS } from "../data/airportKgIds";
+import { AIRPORT_KG_IDS } from "../../data/airportKgIds";
 
 // ─── Types ───
 

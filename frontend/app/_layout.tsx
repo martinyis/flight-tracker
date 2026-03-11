@@ -14,11 +14,19 @@ import {
   Outfit_800ExtraBold,
   Outfit_900Black,
 } from "@expo-google-fonts/outfit";
-import { AuthProvider, useAuth } from "../src/context/AuthContext";
-import { fonts } from "../src/utils/fonts";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
+import { AuthProvider, useAuth } from "../src/providers/AuthProvider";
+import { CreditsProvider } from "../src/providers/CreditsProvider";
+import { fonts } from "../src/theme";
 
-// Keep splash screen visible until fonts are loaded
 SplashScreen.preventAutoHideAsync();
+
+// Fade transition config for tab-like screens
+const fadeTransition = {
+  animation: "fade" as const,
+  gestureEnabled: false,
+};
 
 function RootLayoutNav() {
   const { token, isLoading } = useAuth();
@@ -28,10 +36,7 @@ function RootLayoutNav() {
   useEffect(() => {
     if (isLoading) return;
 
-    const inAuthGroup =
-      segments[0] === "welcome" ||
-      segments[0] === "login" ||
-      segments[0] === "register";
+    const inAuthGroup = segments[0] === "welcome";
 
     if (!token && !inAuthGroup) {
       router.replace("/welcome");
@@ -47,63 +52,46 @@ function RootLayoutNav() {
           flex: 1,
           justifyContent: "center",
           alignItems: "center",
-          backgroundColor: "#F0F6FF",
+          backgroundColor: "#DCEEFB",
         }}
       >
-        <StatusBar barStyle="dark-content" backgroundColor="#F0F6FF" />
-        <ActivityIndicator size="large" color="#3B82F6" />
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor="transparent"
+          translucent
+        />
+        <ActivityIndicator size="large" color="#2F9CF4" />
       </View>
     );
   }
 
   return (
     <>
-      <StatusBar barStyle="dark-content" backgroundColor="#F0F6FF" />
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="transparent"
+        translucent
+      />
       <Stack
         screenOptions={{
-          headerStyle: {
-            backgroundColor: "#F0F6FF",
-          },
-          headerTintColor: "#3B82F6",
-          headerTitleStyle: {
-            fontFamily: fonts.bold,
-            color: "#0F172A",
-            fontSize: 18,
+          headerShown: false,
+          contentStyle: {
+            backgroundColor: "#DCEEFB",
           },
           headerShadowVisible: false,
-          contentStyle: {
-            backgroundColor: "#F0F6FF",
-          },
         }}
       >
-        <Stack.Screen
-          name="welcome"
-          options={{ title: "Welcome", headerShown: false }}
-        />
-        <Stack.Screen
-          name="login"
-          options={{ title: "Sign In", headerShown: false }}
-        />
-        <Stack.Screen
-          name="register"
-          options={{ title: "Sign Up", headerShown: false }}
-        />
-        <Stack.Screen
-          name="index"
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="add-search"
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="settings"
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="search/[id]"
-          options={{ headerShown: false }}
-        />
+        {/* Auth screen */}
+        <Stack.Screen name="welcome" />
+
+        {/* Tab-like screens: fade transition, no swipe-back gesture */}
+        <Stack.Screen name="index" options={fadeTransition} />
+        <Stack.Screen name="credits" options={fadeTransition} />
+        <Stack.Screen name="settings" options={fadeTransition} />
+
+        {/* Normal stack screens: default iOS slide */}
+        <Stack.Screen name="add-search" />
+        <Stack.Screen name="search/[id]" />
       </Stack>
     </>
   );
@@ -128,14 +116,19 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError]);
 
-  // Wait for fonts before rendering anything
   if (!fontsLoaded && !fontError) {
     return null;
   }
 
   return (
-    <AuthProvider>
-      <RootLayoutNav />
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <CreditsProvider>
+          <BottomSheetModalProvider>
+            <RootLayoutNav />
+          </BottomSheetModalProvider>
+        </CreditsProvider>
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }
