@@ -34,6 +34,15 @@ export const refreshSearch = asyncHandler(async (req: AuthRequest, res: Response
   res.json(search);
 });
 
+export const paidRefresh = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const result = await savedSearchService.paidRefresh(
+    req.params.id as string,
+    req.userId!,
+    req.body.apiFilters
+  );
+  res.json(result);
+});
+
 export const updateFilters = asyncHandler(async (req: AuthRequest, res: Response) => {
   const search = await savedSearchService.updateFilters(
     req.params.id as string,

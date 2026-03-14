@@ -1,57 +1,71 @@
 import { View, StyleSheet } from "react-native";
 
 // ---------------------------------------------------------------------------
-// View-based arrow icon (no emoji) — matches the detail screen pattern.
-// Renders a right-pointing chevron built from CSS borders.
+// Dot-tipped route arrow — a clean line with a filled dot at the end.
+// Used between airport codes on both home and detail screens.
 // ---------------------------------------------------------------------------
 
 interface RouteArrowProps {
-  /** Overall icon size in points. Default 14. */
-  size?: number;
-  /** Chevron stroke color. Default blue-500. */
+  /** Width of the arrow line. Default 28. */
+  width?: number;
+  /** Line + dot color. Default neutral-300. */
   color?: string;
+  /** Line thickness. Default 1.5. */
+  stroke?: number;
+  /** Dot diameter. Default 4. */
+  dotSize?: number;
 }
 
-export default function RouteArrow({ size = 14, color = "#3B82F6" }: RouteArrowProps) {
+export default function RouteArrow({
+  width = 28,
+  color = "#CBD5E1",
+  stroke = 1.5,
+  dotSize = 4,
+}: RouteArrowProps) {
   return (
-    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+    <View style={[styles.wrap, { width }]}>
+      <View style={[styles.line, { height: stroke, backgroundColor: color }]} />
       <View
-        style={{
-          width: size * 0.55,
-          height: size * 0.55,
-          borderRightWidth: 2,
-          borderTopWidth: 2,
-          borderColor: color,
-          transform: [{ rotate: "45deg" }],
-          marginLeft: -(size * 0.15),
-        }}
+        style={[
+          styles.dot,
+          {
+            width: dotSize,
+            height: dotSize,
+            borderRadius: dotSize / 2,
+            backgroundColor: color,
+          },
+        ]}
       />
     </View>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Route arrow with dashed line and circle — the full route visualization
-// used between airport codes. Mirrors the detail screen's hero card pattern
-// but at a configurable scale.
+// Larger route arrow with circle accent — used in the detail screen hero.
+// The line extends through a subtle tinted circle for visual emphasis.
 // ---------------------------------------------------------------------------
 
-interface RouteArrowLineProps {
-  /** Whether this is a round trip (shows bidirectional arrows). Default false. */
-  roundTrip?: boolean;
-  /** Circle diameter. Default 28. */
+interface RouteArrowHeroProps {
+  /** Total width of the arrow. Default 48. */
+  width?: number;
+  /** Circle diameter in the center. Default 22. */
   circleSize?: number;
+  /** Whether this is a round trip. Default false. */
+  roundTrip?: boolean;
 }
 
-export function RouteArrowLine({ roundTrip = false, circleSize = 28 }: RouteArrowLineProps) {
-  const arrowSize = roundTrip ? Math.round(circleSize * 0.38) : Math.round(circleSize * 0.5);
-
+export function RouteArrowHero({
+  width = 48,
+  circleSize = 22,
+  roundTrip = false,
+}: RouteArrowHeroProps) {
+  const dotSize = 4;
   return (
-    <View style={lineStyles.wrap}>
-      <View style={lineStyles.line} />
+    <View style={[styles.heroWrap, { width }]}>
+      <View style={styles.heroLine} />
       <View
         style={[
-          lineStyles.circle,
+          styles.heroCircle,
           {
             width: circleSize,
             height: circleSize,
@@ -60,47 +74,70 @@ export function RouteArrowLine({ roundTrip = false, circleSize = 28 }: RouteArro
         ]}
       >
         {roundTrip ? (
-          <View style={lineStyles.roundTripWrap}>
-            <RouteArrow size={arrowSize} color="#3B82F6" />
-            <View style={lineStyles.returnArrow}>
-              <RouteArrow size={arrowSize} color="#3B82F6" />
-            </View>
+          <View style={styles.biArrows}>
+            <View style={[styles.heroDot, { width: dotSize, height: dotSize, borderRadius: dotSize / 2 }]} />
+            <View style={styles.heroInnerLine} />
+            <View style={[styles.heroDot, { width: dotSize, height: dotSize, borderRadius: dotSize / 2 }]} />
           </View>
         ) : (
-          <RouteArrow size={arrowSize} color="#3B82F6" />
+          <View style={styles.heroArrowInner}>
+            <View style={styles.heroInnerLine} />
+            <View style={[styles.heroDot, { width: dotSize, height: dotSize, borderRadius: dotSize / 2 }]} />
+          </View>
         )}
       </View>
-      <View style={lineStyles.line} />
+      <View style={styles.heroLine} />
     </View>
   );
 }
 
-const lineStyles = StyleSheet.create({
+const styles = StyleSheet.create({
+  // --- Dot-tipped arrow (compact) ---
   wrap: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 8,
   },
   line: {
     flex: 1,
-    height: 1,
-    backgroundColor: "rgba(148, 163, 184, 0.3)",
   },
-  circle: {
-    backgroundColor: "rgba(59, 130, 246, 0.08)",
+  dot: {
+    marginLeft: -1,
+  },
+
+  // --- Hero arrow with circle ---
+  heroWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  heroLine: {
+    flex: 1,
+    height: 1.5,
+    backgroundColor: "#CBD5E1",
+  },
+  heroCircle: {
+    backgroundColor: "rgba(47, 156, 244, 0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(47, 156, 244, 0.12)",
     alignItems: "center",
     justifyContent: "center",
-    marginHorizontal: 6,
-    borderWidth: 1,
-    borderColor: "rgba(59, 130, 246, 0.12)",
+    marginHorizontal: 4,
   },
-  roundTripWrap: {
+  heroArrowInner: {
     flexDirection: "row",
     alignItems: "center",
     gap: 1,
   },
-  returnArrow: {
-    transform: [{ rotate: "180deg" }],
+  heroInnerLine: {
+    width: 6,
+    height: 1.5,
+    backgroundColor: "#2F9CF4",
+  },
+  heroDot: {
+    backgroundColor: "#2F9CF4",
+  },
+  biArrows: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
   },
 });

@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef } from "react";
 import { View, Text, Pressable, Animated, Easing, StyleSheet } from "react-native";
 import { BlurView } from "expo-blur";
 import AirlineLogo from "../ui/AirlineLogo";
-import { RouteArrowLine } from "../ui/RouteArrow";
+import { RouteArrowHero } from "../ui/RouteArrow";
 import { getCityByIata } from "../../lib/utils/airportSearch";
 import { timeAgo } from "../../lib/utils/time";
 import { fonts } from "../../theme";
+import { useHaptics } from "../../providers/HapticsProvider";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -112,6 +113,7 @@ export default function FlightPanel({
   isLast = false,
   index,
 }: FlightPanelProps) {
+  const haptics = useHaptics();
   const originCity = getCityByIata(data.origin);
   const destCity = getCityByIata(data.destination);
   const isRoundTrip = data.tripType === "roundtrip";
@@ -160,7 +162,7 @@ export default function FlightPanel({
       }}
     >
       <Pressable
-        onPress={onPress}
+        onPress={() => { haptics.light(); onPress(); }}
         style={({ pressed }) => [
           styles.pressable,
           isFirst && styles.pressableFirst,
@@ -192,7 +194,7 @@ export default function FlightPanel({
                   </Text>
                 </View>
 
-                <RouteArrowLine roundTrip={isRoundTrip} circleSize={28} />
+                <RouteArrowHero width={56} circleSize={24} roundTrip={isRoundTrip} />
 
                 <View style={[styles.routeEndpoint, styles.routeEndpointRight]}>
                   <Text style={[styles.airportCode, styles.airportCodeRight]}>

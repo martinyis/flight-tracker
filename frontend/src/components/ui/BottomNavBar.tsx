@@ -3,6 +3,7 @@ import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, usePathname } from "expo-router";
 import { Home, Coins, User, Plus } from "lucide-react-native";
+import { useHaptics } from "../../providers/HapticsProvider";
 
 const PRIMARY = "#2F9CF4";
 const PRIMARY_PRESSED = "#1A7ED4";
@@ -12,13 +13,17 @@ export default function BottomNavBar() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const pathname = usePathname();
+  const haptics = useHaptics();
 
   const isHome = pathname === "/";
   const isCredits = pathname === "/credits";
   const isProfile = pathname === "/settings";
 
   const navigateTab = (path: "/" | "/credits" | "/settings") => {
-    if (pathname !== path) router.replace(path);
+    if (pathname !== path) {
+      haptics.light();
+      router.replace(path);
+    }
   };
 
   return (
@@ -84,7 +89,7 @@ export default function BottomNavBar() {
               styles.addBtn,
               pressed && styles.addBtnPressed,
             ]}
-            onPress={() => router.push("/add-search")}
+            onPress={() => { haptics.medium(); router.push("/add-search"); }}
           >
             <Plus size={22} color="#FFFFFF" strokeWidth={2.5} />
           </Pressable>

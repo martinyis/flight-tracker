@@ -14,12 +14,12 @@ const SEARCH_TIERS: [number, number][] = [
 
 /** Tracking credit cost tiers — base cost for 14 days. Scaled linearly for other durations. */
 const TRACKING_TIERS: [number, number][] = [
-  [10, 25],
-  [20, 35],
-  [50, 55],
-  [100, 85],
-  [150, 120],
-  [200, 175],
+  [10, 50],
+  [20, 55],
+  [50, 70],
+  [100, 95],
+  [150, 125],
+  [200, 160],
 ];
 
 function lookupTier(tiers: [number, number][], comboCount: number): number {

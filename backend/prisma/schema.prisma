@@ -15,6 +15,7 @@ model User {
   googleId      String?  @unique @map("google_id")
   appleId       String?  @unique @map("apple_id")
   creditBalance Int      @default(0) @map("credit_balance")
+  pushToken     String?  @map("push_token")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 

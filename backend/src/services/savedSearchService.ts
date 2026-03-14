@@ -9,7 +9,7 @@ export {
 } from "./search/crud";
 
 export {
-  refreshSearch, updateFilters,
+  paidRefresh, refreshSearch, updateFilters,
   hydrateSearch, hydrateOneOption,
 } from "./search/operations";
 

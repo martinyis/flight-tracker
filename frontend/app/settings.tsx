@@ -9,6 +9,7 @@ import {
   StatusBar,
   Animated,
   Easing,
+  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
@@ -30,8 +31,13 @@ import {
   UserPen,
   Trash2,
   X,
+  LifeBuoy,
+  FileText,
+  ScrollText,
+  Smartphone,
 } from "lucide-react-native";
 import { useAuth } from "../src/providers/AuthProvider";
+import { useHaptics } from "../src/providers/HapticsProvider";
 import MeshBackground from "../src/components/ui/MeshBackground";
 import BottomNavBar from "../src/components/ui/BottomNavBar";
 import { fonts } from "../src/theme";
@@ -167,6 +173,59 @@ const loadS = StyleSheet.create({
 });
 
 // ---------------------------------------------------------------------------
+// Toggle switch
+// ---------------------------------------------------------------------------
+
+function ToggleSwitch({ value, onToggle }: { value: boolean; onToggle: () => void }) {
+  const knobX = useRef(new Animated.Value(value ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(knobX, {
+      toValue: value ? 1 : 0,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
+  }, [value]);
+
+  const translateX = knobX.interpolate({
+    inputRange: [0, 1],
+    outputRange: [2, 22],
+  });
+
+  return (
+    <Pressable
+      onPress={onToggle}
+      style={[toggleS.track, value && toggleS.trackOn]}
+      hitSlop={8}
+    >
+      <Animated.View style={[toggleS.knob, { transform: [{ translateX }] }]} />
+    </Pressable>
+  );
+}
+
+const toggleS = StyleSheet.create({
+  track: {
+    width: 48,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: C.n300,
+    justifyContent: "center",
+  },
+  trackOn: { backgroundColor: C.primary },
+  knob: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+});
+
+// ---------------------------------------------------------------------------
 // Settings row component
 // ---------------------------------------------------------------------------
 
@@ -255,6 +314,7 @@ const rowS = StyleSheet.create({
 
 export default function SettingsScreen() {
   const { logout, deleteAccount } = useAuth();
+  const haptics = useHaptics();
   const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -299,10 +359,11 @@ export default function SettingsScreen() {
 
   // --- Edit name ---
   const openEditName = useCallback(() => {
+    haptics.light();
     setEditFirst(profile?.firstName || "");
     setEditLast(profile?.lastName || "");
     editSheetRef.current?.present();
-  }, [profile]);
+  }, [profile, haptics]);
 
   const hasNameChanges =
     editFirst.trim() !== (profile?.firstName || "") ||
@@ -310,12 +371,14 @@ export default function SettingsScreen() {
 
   const handleSaveName = async () => {
     if (!hasNameChanges || saving) return;
+    haptics.medium();
     setSaving(true);
     try {
       await api.put("/auth/me", {
         firstName: editFirst.trim() || null,
         lastName: editLast.trim() || null,
       });
+      haptics.success();
       setProfile((prev) =>
         prev
           ? {
@@ -327,6 +390,7 @@ export default function SettingsScreen() {
       );
       editSheetRef.current?.dismiss();
     } catch {
+      haptics.error();
       Alert.alert(
         "Something went wrong",
         "Couldn't update your name. Try again."
@@ -338,6 +402,7 @@ export default function SettingsScreen() {
 
   // --- Delete account ---
   const handleDeleteAccount = () => {
+    haptics.heavy();
     Alert.alert(
       "Delete your account?",
       "This will permanently delete your account, all saved searches, and credit history. This cannot be undone.",
@@ -366,6 +431,8 @@ export default function SettingsScreen() {
   const displayName = profile
     ? getDisplayName(profile.firstName, profile.lastName)
     : null;
+
+  const isPrivateEmail = profile?.email?.endsWith("appleid.com") ?? false;
 
   const renderBackdrop = useCallback(
     (props: any) => (
@@ -431,9 +498,11 @@ export default function SettingsScreen() {
                 {displayName && (
                   <Text style={s.displayName}>{displayName}</Text>
                 )}
-                <Text style={displayName ? s.emailSecondary : s.email}>
-                  {profile.email}
-                </Text>
+                {!isPrivateEmail && (
+                  <Text style={displayName ? s.emailSecondary : s.email}>
+                    {profile.email}
+                  </Text>
+                )}
                 <Text style={s.memberSince}>
                   Member since {formatMemberSince(profile.createdAt)}
                 </Text>
@@ -468,12 +537,14 @@ export default function SettingsScreen() {
                 value={displayName || "Add your name"}
                 onPress={openEditName}
               />
-              <SettingsRow
-                icon={<Mail size={18} color={C.primary} strokeWidth={2} />}
-                iconColor={C.primary}
-                label="Email"
-                value={profile.email}
-              />
+              {!isPrivateEmail && (
+                <SettingsRow
+                  icon={<Mail size={18} color={C.primary} strokeWidth={2} />}
+                  iconColor={C.primary}
+                  label="Email"
+                  value={profile.email}
+                />
+              )}
               <SettingsRow
                 icon={
                   <Shield size={18} color={C.primary} strokeWidth={2} />
@@ -514,11 +585,50 @@ export default function SettingsScreen() {
 
               {/* Preferences section */}
               <Text style={s.sectionLabel}>PREFERENCES</Text>
+              <View style={rowS.row}>
+                <View style={[rowS.iconWrap, { backgroundColor: `${C.primary}12` }]}>
+                  <Smartphone size={18} color={C.primary} strokeWidth={2} />
+                </View>
+                <View style={rowS.labelWrap}>
+                  <Text style={rowS.label}>Haptic Feedback</Text>
+                  <Text style={rowS.value}>Vibration on interactions</Text>
+                </View>
+                <ToggleSwitch
+                  value={haptics.enabled}
+                  onToggle={() => {
+                    haptics.light();
+                    haptics.setEnabled(!haptics.enabled);
+                  }}
+                />
+              </View>
+              <View style={rowS.divider} />
               <SettingsRow
                 icon={<Bell size={18} color={C.n500} strokeWidth={2} />}
                 iconColor={C.n500}
                 label="Notifications"
                 value="Coming soon"
+                isLast
+              />
+
+              {/* Support / Legal */}
+              <Text style={s.sectionLabel}>SUPPORT & LEGAL</Text>
+              <SettingsRow
+                icon={<LifeBuoy size={18} color={C.n500} strokeWidth={2} />}
+                iconColor={C.n500}
+                label="Contact Support"
+                onPress={() => { haptics.light(); Linking.openURL("mailto:support@example.com"); }}
+              />
+              <SettingsRow
+                icon={<FileText size={18} color={C.n500} strokeWidth={2} />}
+                iconColor={C.n500}
+                label="Privacy Policy"
+                onPress={() => { haptics.light(); Alert.alert("Coming Soon", "Privacy Policy will be available soon."); }}
+              />
+              <SettingsRow
+                icon={<ScrollText size={18} color={C.n500} strokeWidth={2} />}
+                iconColor={C.n500}
+                label="Terms of Service"
+                onPress={() => { haptics.light(); Alert.alert("Coming Soon", "Terms of Service will be available soon."); }}
                 isLast
               />
 
@@ -529,7 +639,7 @@ export default function SettingsScreen() {
                     s.signOutButton,
                     pressed && s.signOutButtonPressed,
                   ]}
-                  onPress={logout}
+                  onPress={() => { haptics.medium(); logout(); }}
                 >
                   <LogOut size={18} color={C.error600} strokeWidth={2} />
                   <Text style={s.signOutText}>Sign out</Text>

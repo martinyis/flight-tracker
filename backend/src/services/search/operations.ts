@@ -1,6 +1,6 @@
 import prisma from "../../config/db";
 import {
-  SearchFilters, OneWayRawLegs,
+  ApiFilters, SearchFilters, OneWayRawLegs,
   isLegacyRoundTripRawLegs, isComboRawLegs,
   readSearchFilters, readApiFilters, readAvailableAirlines,
   readPriceHistory, readLatestResults,
@@ -21,8 +21,114 @@ import { REFRESH_MIN_INTERVAL_MS, TOP_RESULTS_LIMIT } from "../../config/constan
 import {
   jsonLatestResults, jsonRawLegs, jsonFilters,
   jsonAvailableAirlines, jsonAirlineLogos, jsonPriceHistory,
+  jsonApiFilters,
 } from "../../types/prismaJson";
-import { parseId, appendPriceHistory } from "./helpers";
+import { computeSearchCredits, deductCredits, refundCredits } from "../creditService";
+import { parseId, appendPriceHistory, validateApiFilters } from "./helpers";
+
+// ---------------------------------------------------------------------------
+// Paid refresh — re-search SerpAPI with credit deduction (no tracking required)
+// ---------------------------------------------------------------------------
+
+export async function paidRefresh(id: string, userId: string, newApiFilters?: ApiFilters) {
+  const searchId = parseId(id);
+  const uid = parseId(userId);
+
+  const search = await prisma.savedSearch.findFirst({
+    where: { id: searchId, userId: uid },
+  });
+  if (!search) throw new NotFoundError("Search not found");
+
+  const comboCount = search.comboCount ?? 1;
+  const creditCost = computeSearchCredits(comboCount);
+
+  // Deduct credits upfront
+  await deductCredits(
+    uid,
+    creditCost,
+    "search_refresh",
+    search.id,
+    `Re-search: ${search.origin} → ${search.destination}`
+  );
+
+  if (newApiFilters) {
+    validateApiFilters(newApiFilters);
+  }
+
+  const filters = newApiFilters ? undefined : readSearchFilters(search.filters);
+  const searchApiFilters = newApiFilters ?? readApiFilters(search.apiFilters);
+  const existingHistory = readPriceHistory(search.priceHistory);
+
+  try {
+    if (search.tripType === "oneway") {
+      const { results, cheapestPrice, availableAirlines, airlineLogos, rawLegs } =
+        await searchOneWayByParams({
+          origin: search.origin,
+          destination: search.destination,
+          dateFrom: search.dateFrom,
+          dateTo: search.dateTo,
+          filters,
+          apiFilters: searchApiFilters,
+        });
+
+      const updated = await prisma.savedSearch.update({
+        where: { id: search.id },
+        data: {
+          rawLegs: jsonRawLegs({ outbound: rawLegs, return: [] }),
+          latestResults: jsonLatestResults(results),
+          cheapestPrice,
+          availableAirlines: jsonAvailableAirlines(availableAirlines),
+          airlineLogos: jsonAirlineLogos(airlineLogos),
+          lastCheckedAt: new Date(),
+          priceHistory: jsonPriceHistory(appendPriceHistory(existingHistory, cheapestPrice)),
+          searchCredits: (search.searchCredits ?? 0) + creditCost,
+          ...(newApiFilters && {
+            apiFilters: jsonApiFilters(newApiFilters),
+            filters: jsonFilters({}),
+          }),
+        },
+        omit: { rawLegs: true },
+      });
+      return { search: updated, creditsCharged: creditCost };
+    } else {
+      const { results, unhydratedOptions, cheapestPrice, availableAirlines, airlineLogos, allRawOptions } =
+        await searchByParams({
+          origin: search.origin,
+          destination: search.destination,
+          dateFrom: search.dateFrom,
+          dateTo: search.dateTo,
+          minNights: search.minNights!,
+          maxNights: search.maxNights!,
+          filters,
+          apiFilters: searchApiFilters,
+        });
+
+      const updated = await prisma.savedSearch.update({
+        where: { id: search.id },
+        data: {
+          rawLegs: jsonRawLegs(allRawOptions),
+          latestResults: jsonLatestResults([...results, ...unhydratedOptions]),
+          cheapestPrice,
+          availableAirlines: jsonAvailableAirlines(availableAirlines),
+          airlineLogos: jsonAirlineLogos(airlineLogos),
+          lastCheckedAt: new Date(),
+          priceHistory: jsonPriceHistory(appendPriceHistory(existingHistory, cheapestPrice)),
+          searchCredits: (search.searchCredits ?? 0) + creditCost,
+          ...(newApiFilters && {
+            apiFilters: jsonApiFilters(newApiFilters),
+            filters: jsonFilters({}),
+          }),
+        },
+        omit: { rawLegs: true },
+      });
+      return { search: updated, creditsCharged: creditCost };
+    }
+  } catch (err) {
+    // Refund credits on SerpAPI failure
+    await refundCredits(uid, creditCost, search.id, "Search refresh failed — refunded");
+    throw err;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Refresh — re-search SerpAPI, store fresh full data, re-apply filters

@@ -1,11 +1,13 @@
 import { TouchableOpacity, Text, StyleSheet, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useCredits } from "../../providers/CreditsProvider";
+import { useHaptics } from "../../providers/HapticsProvider";
 import { fonts } from "../../theme";
 import { Coins } from "lucide-react-native";
 
 export default function CreditsBadge() {
   const { balance } = useCredits();
+  const haptics = useHaptics();
   const router = useRouter();
 
   if (balance == null) return null;
@@ -13,7 +15,7 @@ export default function CreditsBadge() {
   return (
     <TouchableOpacity
       style={styles.badge}
-      onPress={() => router.push("/credits" as any)}
+      onPress={() => { haptics.light(); router.push("/credits" as any); }}
       activeOpacity={0.7}
     >
       <View style={styles.coin}>

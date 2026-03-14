@@ -11,6 +11,7 @@ import {
   FlightLeg,
 } from "../services/flightService";
 import { appendPriceHistory } from "../services/savedSearchService";
+import { sendPushNotification } from "../utils/pushNotification";
 import { SENTINEL_TOLERANCE, CRON_GROUP_DELAY_MS, TOP_RESULTS_LIMIT } from "../config/constants";
 import {
   jsonRawLegs, jsonLatestResults, jsonAvailableAirlines,
@@ -102,6 +103,7 @@ export async function runPriceCheck(): Promise<void> {
           { nextCheckAt: { lte: now } },
         ],
       },
+      include: { user: { select: { pushToken: true } } },
     });
 
     if (searches.length === 0) {
@@ -175,6 +177,8 @@ export async function runPriceCheck(): Promise<void> {
 
             const existingHistory = readPriceHistory(s.priceHistory);
 
+            const oldPrice = s.cheapestPrice;
+
             await prisma.savedSearch.update({
               where: { id: searchId },
               data: {
@@ -188,6 +192,16 @@ export async function runPriceCheck(): Promise<void> {
                 priceHistory: jsonPriceHistory(appendPriceHistory(existingHistory, cheapestPrice)),
               },
             });
+
+            // Send push notification on price drop
+            if (cheapestPrice != null && oldPrice != null && cheapestPrice < oldPrice && s.user.pushToken) {
+              sendPushNotification({
+                to: s.user.pushToken,
+                title: "Price Drop!",
+                body: `${s.origin} → ${s.destination} dropped to $${cheapestPrice} (was $${oldPrice})`,
+                data: { searchId },
+              });
+            }
           }
         } else {
           // Round-trip: sentinel strategy
@@ -267,6 +281,7 @@ export async function runPriceCheck(): Promise<void> {
               }
 
               const existingHistory = readPriceHistory(s.priceHistory);
+              const oldPrice = s.cheapestPrice;
 
               await prisma.savedSearch.update({
                 where: { id: searchId },
@@ -282,6 +297,16 @@ export async function runPriceCheck(): Promise<void> {
                   sentinelPairs: jsonSentinelPairs(newSentinels),
                 },
               });
+
+              // Send push notification on price drop
+              if (cheapestPrice != null && oldPrice != null && cheapestPrice < oldPrice && s.user.pushToken) {
+                sendPushNotification({
+                  to: s.user.pushToken,
+                  title: "Price Drop!",
+                  body: `${s.origin} → ${s.destination} dropped to $${cheapestPrice} (was $${oldPrice})`,
+                  data: { searchId },
+                });
+              }
             }
           }
         }
@@ -305,12 +330,12 @@ export async function runPriceCheck(): Promise<void> {
 }
 
 export function startPriceCheckCron(): void {
-  cron.schedule("0 * * * *", async () => {
+  cron.schedule("0 */4 * * *", async () => {
     try {
       await runPriceCheck();
     } catch (err) {
       console.error("[PriceCheck] Cron error:", err);
     }
   });
-  console.log("Price check cron scheduled (every hour, adaptive per search)");
+  console.log("Price check cron scheduled (every 4 hours, adaptive per search)");
 }

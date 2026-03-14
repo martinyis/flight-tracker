@@ -9,7 +9,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
     <key>CFBundleDisplayName</key>
-    <string>Flight Tracker</string>
+    <string>SkyLens</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIdentifier</key>
@@ -29,14 +29,14 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>flight-tracker</string>
+          <string>skylens</string>
           <string>com.googleusercontent.apps.949286619491-de0rldlh2qoljftscfdb08sk52h6gf6e</string>
         </array>
       </dict>
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>exp+flight-tracker</string>
+          <string>exp+skylens</string>
         </array>
       </dict>
     </array>

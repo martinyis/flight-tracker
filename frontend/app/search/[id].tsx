@@ -12,6 +12,7 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  ScrollView,
   type LayoutChangeEvent,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -27,6 +28,9 @@ import BackButton from "../../src/components/ui/BackButton";
 import AirlineLogo from "../../src/components/ui/AirlineLogo";
 import { timeAgo } from "../../src/lib/utils/time";
 import { fonts } from "../../src/theme";
+import { useCredits } from "../../src/providers/CreditsProvider";
+import { useHaptics } from "../../src/providers/HapticsProvider";
+import { RouteArrowHero } from "../../src/components/ui/RouteArrow";
 
 // Enable LayoutAnimation on Android
 if (
@@ -61,6 +65,14 @@ interface Combo {
   price?: number;
 }
 
+interface ApiFilters {
+  stops?: 1 | 2 | 3;
+  excludeAirlines?: string[];
+  includeAirlines?: string[];
+  maxDuration?: number;
+  bags?: 0 | 1;
+}
+
 interface SearchFilters {
   airlines?: string[];
 }
@@ -79,10 +91,11 @@ interface SavedSearch {
   cheapestPrice: number | null;
   latestResults: (Combo | FlightLeg)[];
   filters: SearchFilters;
+  apiFilters?: ApiFilters;
   availableAirlines: string[];
   airlineLogos?: Record<string, string>;
+  trackingActive?: boolean;
   trackingPaid?: boolean;
-  trackingFee?: number;
   comboCount?: number;
 }
 
@@ -311,16 +324,87 @@ function OverflowIcon({ color = "#94A3B8" }: { color?: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Tracking cost calculator (mirrors backend creditService tiers)
+// Toggle switch (reused from add-search.tsx)
 // ---------------------------------------------------------------------------
 
+function ToggleSwitch({ value, onToggle }: { value: boolean; onToggle: () => void }) {
+  const knobX = useRef(new Animated.Value(value ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(knobX, {
+      toValue: value ? 1 : 0,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
+  }, [value]);
+
+  const translateX = knobX.interpolate({
+    inputRange: [0, 1],
+    outputRange: [2, 22],
+  });
+
+  return (
+    <Pressable
+      onPress={onToggle}
+      style={[rsStyles.switchTrack, value && rsStyles.switchTrackOn]}
+      hitSlop={8}
+    >
+      <Animated.View
+        style={[rsStyles.switchKnob, { transform: [{ translateX }] }]}
+      />
+    </Pressable>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Duration options for re-search modal
+// ---------------------------------------------------------------------------
+
+const DURATION_OPTIONS = [
+  { label: "Any", value: 0 },
+  { label: "4h", value: 240 },
+  { label: "6h", value: 360 },
+  { label: "8h", value: 480 },
+  { label: "10h", value: 600 },
+  { label: "12h", value: 720 },
+  { label: "16h", value: 960 },
+  { label: "24h", value: 1440 },
+];
+
+// ---------------------------------------------------------------------------
+// Filter icon for re-search
+// ---------------------------------------------------------------------------
+
+function FilterIcon({ size = 16, color = "#2F9CF4" }: { size?: number; color?: string }) {
+  return (
+    <View style={{ width: size, height: size, justifyContent: "center", alignItems: "center" }}>
+      <View style={{ width: size * 0.85, height: 1.5, backgroundColor: color, borderRadius: 1, marginBottom: 3 }} />
+      <View style={{ width: size * 0.6, height: 1.5, backgroundColor: color, borderRadius: 1, marginBottom: 3 }} />
+      <View style={{ width: size * 0.35, height: 1.5, backgroundColor: color, borderRadius: 1 }} />
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Credit cost calculators (mirrors backend creditService tiers)
+// ---------------------------------------------------------------------------
+
+function computeSearchCredits(comboCount: number): number {
+  if (comboCount <= 10) return 5;
+  if (comboCount <= 20) return 10;
+  if (comboCount <= 50) return 20;
+  if (comboCount <= 100) return 35;
+  if (comboCount <= 150) return 55;
+  return 80;
+}
+
 const TRACKING_TIERS: [number, number][] = [
-  [10, 25],
-  [20, 35],
-  [50, 55],
-  [100, 85],
-  [150, 120],
-  [200, 175],
+  [10, 50],
+  [20, 55],
+  [50, 70],
+  [100, 95],
+  [150, 125],
+  [200, 160],
 ];
 
 function computeTrackingCredits(comboCount: number, trackingDays: number): number {
@@ -361,6 +445,8 @@ export default function SearchDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { balance, refresh: refreshCredits } = useCredits();
+  const haptics = useHaptics();
   const [search, setSearch] = useState<SavedSearch | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -378,6 +464,14 @@ export default function SearchDetailScreen() {
   const [trackingExpanded, setTrackingExpanded] = useState(false);
   const [selectedTrackingDays, setSelectedTrackingDays] = useState(14);
   const [activatingTracking, setActivatingTracking] = useState(false);
+
+  // -- Re-search with filters modal --
+  const [reSearchModalVisible, setReSearchModalVisible] = useState(false);
+  const [reSearchStops, setReSearchStops] = useState<1 | 2 | 3 | undefined>();
+  const [reSearchMaxDuration, setReSearchMaxDuration] = useState<number | undefined>();
+  const [reSearchBags, setReSearchBags] = useState<0 | 1 | undefined>();
+  const [reSearchExcludeAirlines, setReSearchExcludeAirlines] = useState<Set<string>>(new Set());
+  const [reSearching, setReSearching] = useState(false);
 
   // -- Refresh button: cooldown & loading phase --
   const COOLDOWN_SECONDS = 120; // 2 minutes
@@ -463,7 +557,7 @@ export default function SearchDetailScreen() {
       const needsHydration = isRoundTrip && hasResults &&
         !('return' in (data.latestResults[0] as any));
 
-      if (data.lastCheckedAt && data.trackingPaid) {
+      if (data.lastCheckedAt && data.trackingActive) {
         const age = Date.now() - new Date(data.lastCheckedAt).getTime();
         const isStale = age > AUTO_REFRESH_THRESHOLD_MS;
 
@@ -492,7 +586,7 @@ export default function SearchDetailScreen() {
             cleanupPhases();
           }
         }
-      } else if (needsHydration && data.trackingPaid) {
+      } else if (needsHydration && data.trackingActive) {
         setRefreshing(true);
         try {
           const hydrateRes = await api.post(`/search/${id}/hydrate`);
@@ -516,6 +610,7 @@ export default function SearchDetailScreen() {
   }, [id]);
 
   const handleDelete = () => {
+    haptics.heavy();
     setOverflowVisible(false);
     Alert.alert("Delete Search", "Are you sure you want to delete this search?", [
       { text: "Cancel", style: "cancel" },
@@ -535,11 +630,13 @@ export default function SearchDetailScreen() {
   };
 
   const handleRefresh = async () => {
+    haptics.medium();
     setRefreshing(true);
     const cleanupPhases = startLoadingPhases();
     try {
       const res = await api.post(`/search/${id}/refresh`);
       setSearch(res.data);
+      haptics.success();
       startCooldown();
     } catch (err: any) {
       const status = err.response?.status;
@@ -570,18 +667,76 @@ export default function SearchDetailScreen() {
     }
   };
 
+  const handlePaidSearch = () => {
+    haptics.medium();
+    if (!search) return;
+    const comboCount = (search.comboCount ?? search.latestResults.length) || 1;
+    const cost = computeSearchCredits(comboCount);
+    const userBalance = balance ?? 0;
+
+    if (userBalance < cost) {
+      Alert.alert(
+        "Not enough credits",
+        `This search costs ${cost} credits but you only have ${userBalance}. Top up to continue.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Buy Credits", onPress: () => router.push("/credits") },
+        ]
+      );
+      return;
+    }
+
+    Alert.alert(
+      "Search again?",
+      `This will use ${cost} credits (you have ${userBalance}).`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: `Search (${cost} cr)`,
+          onPress: async () => {
+            setRefreshing(true);
+            const cleanupPhases = startLoadingPhases();
+            try {
+              const res = await api.post(`/search/${id}/paid-refresh`);
+              setSearch(res.data.search);
+              startCooldown();
+              refreshCredits();
+            } catch (err: any) {
+              const status = err.response?.status;
+              if (status === 402) {
+                Alert.alert(
+                  "Not enough credits",
+                  err.response?.data?.error ?? "Insufficient credits for this search."
+                );
+              } else {
+                Alert.alert("Error", "Something went wrong. Pull down to try again.");
+              }
+            } finally {
+              setRefreshing(false);
+              setRefreshPhase(0);
+              cleanupPhases();
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleActivateTracking = async (days: number) => {
+    haptics.medium();
     setActivatingTracking(true);
     try {
       await api.post(`/search/${id}/activate-tracking`, {
         trackingDays: days,
       });
+      haptics.success();
       setSearch((prev) =>
-        prev ? { ...prev, trackingPaid: true, active: true } : prev
+        prev ? { ...prev, trackingActive: true, trackingPaid: true, active: true } : prev
       );
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setTrackingExpanded(false);
     } catch (err: any) {
+      haptics.error();
       Alert.alert("Error", err.response?.data?.error ?? "Failed to activate tracking");
     } finally {
       setActivatingTracking(false);
@@ -660,6 +815,84 @@ export default function SearchDetailScreen() {
     }
   };
 
+  const openReSearchModal = useCallback(() => {
+    setOverflowVisible(false);
+    if (search?.apiFilters) {
+      setReSearchStops(search.apiFilters.stops);
+      setReSearchMaxDuration(search.apiFilters.maxDuration);
+      setReSearchBags(search.apiFilters.bags);
+      setReSearchExcludeAirlines(
+        new Set(search.apiFilters.excludeAirlines ?? [])
+      );
+    } else {
+      setReSearchStops(undefined);
+      setReSearchMaxDuration(undefined);
+      setReSearchBags(undefined);
+      setReSearchExcludeAirlines(new Set());
+    }
+    setReSearchModalVisible(true);
+  }, [search?.apiFilters]);
+
+  const handleReSearch = async () => {
+    if (!search) return;
+    haptics.medium();
+
+    const comboCount = (search.comboCount ?? search.latestResults.length) || 1;
+    const cost = computeSearchCredits(comboCount);
+    const userBalance = balance ?? 0;
+
+    if (userBalance < cost) {
+      Alert.alert(
+        "Not enough credits",
+        `This search costs ${cost} credits but you only have ${userBalance}. Top up to continue.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Buy Credits", onPress: () => router.push("/credits") },
+        ]
+      );
+      return;
+    }
+
+    // Build apiFilters from modal state
+    const apiFilters: ApiFilters = {};
+    if (reSearchStops) apiFilters.stops = reSearchStops;
+    if (reSearchMaxDuration && reSearchMaxDuration > 0) apiFilters.maxDuration = reSearchMaxDuration;
+    if (reSearchBags) apiFilters.bags = reSearchBags;
+    if (reSearchExcludeAirlines.size > 0) {
+      apiFilters.excludeAirlines = Array.from(reSearchExcludeAirlines);
+    }
+    const hasFilters = Object.keys(apiFilters).length > 0;
+
+    setReSearching(true);
+    setRefreshing(true);
+    const cleanupPhases = startLoadingPhases();
+    try {
+      const res = await api.post(`/search/${id}/paid-refresh`, {
+        ...(hasFilters ? { apiFilters } : {}),
+      });
+      setSearch(res.data.search);
+      startCooldown();
+      refreshCredits();
+      setReSearchModalVisible(false);
+      haptics.success();
+    } catch (err: any) {
+      const status = err.response?.status;
+      if (status === 402) {
+        Alert.alert(
+          "Not enough credits",
+          err.response?.data?.error ?? "Insufficient credits for this search."
+        );
+      } else {
+        Alert.alert("Error", "Something went wrong. Please try again.");
+      }
+    } finally {
+      setReSearching(false);
+      setRefreshing(false);
+      setRefreshPhase(0);
+      cleanupPhases();
+    }
+  };
+
   const formatDate = (d: string) =>
     new Date(d + "T00:00:00").toLocaleDateString("en-US", {
       month: "short",
@@ -690,7 +923,8 @@ export default function SearchDetailScreen() {
     // -- Action line state logic --
     const isFirstTime = !search.lastCheckedAt && search.latestResults.length === 0;
     const isCoolingDown = cooldownLeft > 0 && !refreshing;
-    const isUnpaid = !search.trackingPaid;
+    const isUnpaid = !search.trackingActive;
+    const searchCost = computeSearchCredits((search.comboCount ?? search.latestResults.length) || 1);
 
     return (
     <>
@@ -701,7 +935,7 @@ export default function SearchDetailScreen() {
         <View style={styles.navRow}>
           <BackButton />
           <Pressable
-            onPress={() => setOverflowVisible(true)}
+            onPress={() => { haptics.light(); setOverflowVisible(true); }}
             hitSlop={10}
             style={({ pressed }) => [
               styles.overflowBtn,
@@ -715,10 +949,7 @@ export default function SearchDetailScreen() {
         {/* ---- Route hero ---- */}
         <View style={styles.routeHero}>
           <Text style={styles.routeCode}>{search.origin}</Text>
-          <View style={styles.routeArrowWrap}>
-            <View style={styles.routeArrowLine} />
-            <View style={styles.routeArrowHead} />
-          </View>
+          <RouteArrowHero width={56} circleSize={24} roundTrip={!isOneWay} />
           <Text style={styles.routeCode}>{search.destination}</Text>
         </View>
 
@@ -731,7 +962,7 @@ export default function SearchDetailScreen() {
           )}
         </View>
 
-        {/* ---- Meta line: dates, nights, trip type ---- */}
+        {/* ---- Meta line: dates, nights, trip type, timestamp ---- */}
         <View style={styles.metaRow}>
           <Text style={styles.metaText}>
             {formatDate(search.dateFrom)} {"\u2014"} {formatDate(search.dateTo)}
@@ -748,14 +979,15 @@ export default function SearchDetailScreen() {
           <Text style={styles.metaText}>
             {isOneWay ? "one way" : "round trip"}
           </Text>
+          {search.lastCheckedAt && !refreshing && (
+            <>
+              <View style={styles.metaDot} />
+              <Text style={styles.metaTimestamp}>
+                {timeAgo(search.lastCheckedAt)}
+              </Text>
+            </>
+          )}
         </View>
-
-        {/* ---- Updated timestamp ---- */}
-        {search.lastCheckedAt && !refreshing && (
-          <Text style={styles.updatedTimestamp}>
-            Updated {timeAgo(search.lastCheckedAt)}
-          </Text>
-        )}
 
         {/* ---- Action line ---- */}
         <View style={styles.actionLine}>
@@ -783,7 +1015,7 @@ export default function SearchDetailScreen() {
             </View>
           ) : isFirstTime ? (
             <Pressable
-              onPress={handleRefresh}
+              onPress={handlePaidSearch}
               style={({ pressed }) => pressed && styles.actionLinePressed}
             >
               <View style={styles.actionLineRow}>
@@ -791,25 +1023,28 @@ export default function SearchDetailScreen() {
                 <Text style={styles.actionLineTappable}>
                   Search for flights
                 </Text>
+                <View style={styles.actionCreditPill}>
+                  <Text style={styles.actionCreditText}>{searchCost} cr</Text>
+                </View>
                 <ArrowIcon size={10} color="#2F9CF4" />
               </View>
             </Pressable>
           ) : isUnpaid ? (
             <Pressable
               onPress={() => {
+                haptics.light();
                 LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                 setTrackingExpanded((prev) => !prev);
               }}
-              style={({ pressed }) => [
-                styles.trackPriceBtn,
-                pressed && styles.trackPriceBtnPressed,
-              ]}
+              style={({ pressed }) => pressed && styles.actionLinePressed}
             >
-              <RefreshCycleIcon size={16} color="#F59E0B" />
-              <Text style={styles.trackPriceBtnText}>
-                Track price changes
-              </Text>
-              <ArrowIcon size={10} color="#F59E0B" />
+              <View style={styles.actionLineRow}>
+                <RefreshCycleIcon size={16} color="#F59E0B" />
+                <Text style={styles.actionLineAmber}>
+                  Track price changes
+                </Text>
+                <ArrowIcon size={10} color="#F59E0B" />
+              </View>
             </Pressable>
           ) : (
             <Pressable
@@ -826,109 +1061,110 @@ export default function SearchDetailScreen() {
           )}
         </View>
 
-        {/* ---- Inline tracking activation expansion ---- */}
-        {trackingExpanded && !search.trackingPaid && (
-          <View style={styles.trackingExpansion}>
-            <Text style={styles.trackingLabel}>
-              How long should we watch this route?
-            </Text>
-            <View style={styles.trackingChipsRow}>
-              {TRACKING_PRESETS.map((preset) => {
-                const credits = computeTrackingCredits(
-                  search.comboCount ?? search.latestResults.length,
-                  preset.days
-                );
-                const isSelected = selectedTrackingDays === preset.days;
-                return (
-                  <Pressable
-                    key={preset.days}
-                    onPress={() => setSelectedTrackingDays(preset.days)}
+        {/* ---- Compact tracking duration strip ---- */}
+        {trackingExpanded && !search.trackingActive && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.trackingStrip}
+            contentContainerStyle={styles.trackingStripContent}
+          >
+            {TRACKING_PRESETS.map((preset) => {
+              const credits = computeTrackingCredits(
+                search.comboCount ?? search.latestResults.length,
+                preset.days
+              );
+              const isSelected = selectedTrackingDays === preset.days;
+              return (
+                <Pressable
+                  key={preset.days}
+                  onPress={() => { haptics.light(); setSelectedTrackingDays(preset.days); }}
+                  style={[
+                    styles.trackingChip,
+                    isSelected && styles.trackingChipActive,
+                  ]}
+                >
+                  <Text
                     style={[
-                      styles.trackingChip,
-                      isSelected && styles.trackingChipActive,
+                      styles.trackingChipText,
+                      isSelected && styles.trackingChipTextActive,
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.trackingChipText,
-                        isSelected && styles.trackingChipTextActive,
-                      ]}
-                    >
-                      {preset.label}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.trackingChipCredits,
-                        isSelected && styles.trackingChipCreditsActive,
-                      ]}
-                    >
-                      {credits} cr
-                    </Text>
-                  </Pressable>
-                );
-              })}
-              {/* "Until dep" chip */}
-              {(() => {
-                const depCredits = computeTrackingCredits(
-                  search.comboCount ?? search.latestResults.length,
-                  daysUntilDeparture
-                );
-                const isSelected = selectedTrackingDays === 0;
-                return (
-                  <Pressable
-                    onPress={() => setSelectedTrackingDays(0)}
+                    {preset.label}
+                  </Text>
+                  <Text
                     style={[
-                      styles.trackingChip,
-                      isSelected && styles.trackingChipActive,
+                      styles.trackingChipCredits,
+                      isSelected && styles.trackingChipCreditsActive,
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.trackingChipText,
-                        isSelected && styles.trackingChipTextActive,
-                      ]}
-                    >
-                      Until dep ({daysUntilDeparture}d)
-                    </Text>
-                    <Text
-                      style={[
-                        styles.trackingChipCredits,
-                        isSelected && styles.trackingChipCreditsActive,
-                      ]}
-                    >
-                      {depCredits} cr
-                    </Text>
-                  </Pressable>
-                );
-              })()}
-            </View>
-            <View style={styles.trackingActions}>
-              <Pressable
-                onPress={() => handleActivateTracking(selectedTrackingDays)}
-                disabled={activatingTracking}
-                style={({ pressed }) => [
-                  styles.activateBtn,
-                  pressed && styles.activateBtnPressed,
-                  activatingTracking && styles.activateBtnDisabled,
-                ]}
-              >
-                {activatingTracking ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.activateBtnText}>Start tracking</Text>
-                )}
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                  setTrackingExpanded(false);
-                }}
-                hitSlop={8}
-              >
-                <Text style={styles.trackingDismiss}>Cancel</Text>
-              </Pressable>
-            </View>
-          </View>
+                    {credits} cr
+                  </Text>
+                </Pressable>
+              );
+            })}
+            {/* Until dep chip */}
+            {(() => {
+              const depCredits = computeTrackingCredits(
+                search.comboCount ?? search.latestResults.length,
+                daysUntilDeparture
+              );
+              const isSelected = selectedTrackingDays === 0;
+              return (
+                <Pressable
+                  onPress={() => { haptics.light(); setSelectedTrackingDays(0); }}
+                  style={[
+                    styles.trackingChip,
+                    isSelected && styles.trackingChipActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.trackingChipText,
+                      isSelected && styles.trackingChipTextActive,
+                    ]}
+                  >
+                    Until dep ({daysUntilDeparture}d)
+                  </Text>
+                  <Text
+                    style={[
+                      styles.trackingChipCredits,
+                      isSelected && styles.trackingChipCreditsActive,
+                    ]}
+                  >
+                    {depCredits} cr
+                  </Text>
+                </Pressable>
+              );
+            })()}
+            {/* Inline Track button */}
+            <Pressable
+              onPress={() => handleActivateTracking(selectedTrackingDays)}
+              disabled={activatingTracking}
+              style={({ pressed }) => [
+                styles.trackBtn,
+                pressed && styles.trackBtnPressed,
+                activatingTracking && styles.trackBtnDisabled,
+              ]}
+            >
+              {activatingTracking ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.trackBtnText}>Track</Text>
+              )}
+            </Pressable>
+            {/* Cancel */}
+            <Pressable
+              onPress={() => {
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                setTrackingExpanded(false);
+              }}
+              hitSlop={8}
+              style={styles.trackingDismissWrap}
+            >
+              <Text style={styles.trackingDismiss}>Cancel</Text>
+            </Pressable>
+          </ScrollView>
         )}
 
         {/* Bottom spacer before results */}
@@ -939,7 +1175,7 @@ export default function SearchDetailScreen() {
       <View style={styles.sectionDivider} />
     </>
     );
-  }, [search, refreshing, onHeroLayout, cooldownLeft, refreshPhase, trackingExpanded, selectedTrackingDays, activatingTracking, daysUntilDeparture]);
+  }, [search, refreshing, onHeroLayout, cooldownLeft, refreshPhase, trackingExpanded, selectedTrackingDays, activatingTracking, daysUntilDeparture, balance]);
 
   // Native-driven scroll handler for 60fps animation
   const onScroll = useMemo(
@@ -1079,7 +1315,7 @@ export default function SearchDetailScreen() {
 
           {/* Overflow menu */}
           <Pressable
-            onPress={() => setOverflowVisible(true)}
+            onPress={() => { haptics.light(); setOverflowVisible(true); }}
             hitSlop={10}
             style={({ pressed }) => [
               stickyStyles.overflowBtn,
@@ -1112,6 +1348,17 @@ export default function SearchDetailScreen() {
       >
         <View style={[styles.overflowMenu, { top: insets.top + 52 }]}>
           <Pressable
+            onPress={openReSearchModal}
+            style={({ pressed }) => [
+              styles.overflowMenuItem,
+              pressed && styles.overflowMenuItemPressedBlue,
+            ]}
+          >
+            <FilterIcon size={16} color="#2F9CF4" />
+            <Text style={styles.overflowMenuItemTextBlue}>Re-search</Text>
+          </Pressable>
+          <View style={styles.overflowMenuDivider} />
+          <Pressable
             onPress={handleDelete}
             style={({ pressed }) => [
               styles.overflowMenuItem,
@@ -1126,6 +1373,189 @@ export default function SearchDetailScreen() {
     </Modal>
   );
 
+
+  // ------------------------------------------------------------------
+  // Re-search with filters modal
+  // ------------------------------------------------------------------
+
+  const reSearchCost = computeSearchCredits(
+    (search.comboCount ?? search.latestResults.length) || 1
+  );
+
+  const reSearchModal = (
+    <Modal
+      visible={reSearchModalVisible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={() => !reSearching && setReSearchModalVisible(false)}
+    >
+      <View style={rsStyles.root}>
+        {/* Header */}
+        <View style={rsStyles.header}>
+          <Text style={rsStyles.title}>Re-search</Text>
+          <Pressable
+            onPress={() => setReSearchModalVisible(false)}
+            disabled={reSearching}
+            hitSlop={10}
+          >
+            <Text style={rsStyles.closeText}>Cancel</Text>
+          </Pressable>
+        </View>
+
+        <ScrollView
+          style={rsStyles.scroll}
+          contentContainerStyle={rsStyles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Stops */}
+          <Text style={[rsStyles.sectionLabel, { marginTop: 0 }]}>Stops</Text>
+          <View style={rsStyles.chipRow}>
+            {([
+              { label: "Any", val: undefined as (1 | 2 | 3 | undefined) },
+              { label: "Nonstop", val: 1 as const },
+              { label: "1 stop max", val: 2 as const },
+            ] as const).map((opt) => (
+              <Pressable
+                key={String(opt.val)}
+                style={[rsStyles.chip, reSearchStops === opt.val && rsStyles.chipActive]}
+                onPress={() => { haptics.light(); setReSearchStops(opt.val); }}
+              >
+                <Text style={[rsStyles.chipText, reSearchStops === opt.val && rsStyles.chipTextActive]}>
+                  {opt.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {/* Carry-on */}
+          <View style={rsStyles.toggleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={rsStyles.sectionLabel}>Carry-on included</Text>
+              <Text style={rsStyles.sectionSub}>Only show fares with carry-on bag</Text>
+            </View>
+            <ToggleSwitch
+              value={reSearchBags === 1}
+              onToggle={() => {
+                haptics.light();
+                setReSearchBags((prev) => (prev === 1 ? undefined : 1));
+              }}
+            />
+          </View>
+
+          {/* Max duration */}
+          <Text style={rsStyles.sectionLabel}>Max flight duration</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={rsStyles.chipRow}
+          >
+            {DURATION_OPTIONS.map((opt) => (
+              <Pressable
+                key={opt.value}
+                style={[
+                  rsStyles.chip,
+                  (reSearchMaxDuration ?? 0) === opt.value && rsStyles.chipActive,
+                ]}
+                onPress={() => {
+                  haptics.light();
+                  setReSearchMaxDuration(opt.value || undefined);
+                }}
+              >
+                <Text
+                  style={[
+                    rsStyles.chipText,
+                    (reSearchMaxDuration ?? 0) === opt.value && rsStyles.chipTextActive,
+                  ]}
+                >
+                  {opt.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+
+          {/* Exclude airlines */}
+          {search.availableAirlines.length > 1 && (
+            <>
+              <Text style={rsStyles.sectionLabel}>Exclude airlines</Text>
+              <Text style={rsStyles.sectionSub}>
+                Tap airlines to exclude them from search results
+              </Text>
+              <View style={rsStyles.airlineChipsRow}>
+                {search.availableAirlines.map((airline) => {
+                  const isExcluded = reSearchExcludeAirlines.has(airline);
+                  const logoUrl = search.airlineLogos?.[airline];
+                  return (
+                    <Pressable
+                      key={airline}
+                      onPress={() => {
+                        haptics.selection();
+                        setReSearchExcludeAirlines((prev) => {
+                          const next = new Set(prev);
+                          next.has(airline) ? next.delete(airline) : next.add(airline);
+                          return next;
+                        });
+                      }}
+                      style={({ pressed }) => [
+                        rsStyles.airlineChip,
+                        isExcluded && rsStyles.airlineChipExcluded,
+                        pressed && { transform: [{ scale: 0.96 }] },
+                      ]}
+                    >
+                      <AirlineLogo airline={airline} logoUrl={logoUrl} size={16} />
+                      <Text
+                        style={[
+                          rsStyles.airlineChipText,
+                          isExcluded && rsStyles.airlineChipTextExcluded,
+                        ]}
+                      >
+                        {airline}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+                {reSearchExcludeAirlines.size > 0 && (
+                  <Pressable
+                    onPress={() => {
+                      haptics.light();
+                      setReSearchExcludeAirlines(new Set());
+                    }}
+                    hitSlop={8}
+                  >
+                    <Text style={rsStyles.clearText}>Clear all</Text>
+                  </Pressable>
+                )}
+              </View>
+            </>
+          )}
+        </ScrollView>
+
+        {/* Bottom bar */}
+        <View style={rsStyles.bottomBar}>
+          <View style={rsStyles.creditRow}>
+            <Text style={rsStyles.creditLabel}>Cost: {reSearchCost} credits</Text>
+            <Text style={rsStyles.balanceLabel}>Balance: {balance ?? 0}</Text>
+          </View>
+          <Pressable
+            onPress={handleReSearch}
+            disabled={reSearching}
+            style={({ pressed }) => [
+              rsStyles.searchBtn,
+              pressed && rsStyles.searchBtnPressed,
+              reSearching && rsStyles.searchBtnDisabled,
+            ]}
+          >
+            {reSearching ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={rsStyles.searchBtnText}>
+                Search ({reSearchCost} cr)
+              </Text>
+            )}
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
 
   // ------------------------------------------------------------------
   // Empty results
@@ -1158,6 +1588,7 @@ export default function SearchDetailScreen() {
         </View>
         {stickyHeaderOverlay}
         {overflowMenu}
+        {reSearchModal}
       </View>
     );
   }
@@ -1194,6 +1625,7 @@ export default function SearchDetailScreen() {
                   {totalAirlines > 1 && (
                     <Pressable
                       onPress={() => {
+                        haptics.light();
                         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                         setAirlinesExpanded((prev) => !prev);
                       }}
@@ -1227,7 +1659,7 @@ export default function SearchDetailScreen() {
                       return (
                         <Pressable
                           key={airline}
-                          onPress={() => handleAirlineToggle(airline)}
+                          onPress={() => { haptics.selection(); handleAirlineToggle(airline); }}
                           disabled={updatingFilter}
                           style={({ pressed }) => [
                             styles.airlineChip,
@@ -1249,7 +1681,7 @@ export default function SearchDetailScreen() {
                     })}
                     {hasActiveFilter && (
                       <Pressable
-                        onPress={handleClearFilters}
+                        onPress={() => { haptics.light(); handleClearFilters(); }}
                         disabled={updatingFilter}
                         hitSlop={8}
                       >
@@ -1272,9 +1704,10 @@ export default function SearchDetailScreen() {
                     destination={search.destination}
                     isCheapest={index === 0}
                     isExpanded={expandedIndex === index}
-                    onToggle={() =>
-                      setExpandedIndex((prev) => (prev === index ? -1 : index))
-                    }
+                    onToggle={() => {
+                      haptics.selection();
+                      setExpandedIndex((prev) => (prev === index ? -1 : index));
+                    }}
                     airlineLogos={search.airlineLogos}
                   />
                 ))
@@ -1287,9 +1720,10 @@ export default function SearchDetailScreen() {
                     destination={search.destination}
                     isCheapest={index === 0}
                     isExpanded={expandedIndex === index}
-                    onToggle={() =>
-                      setExpandedIndex((prev) => (prev === index ? -1 : index))
-                    }
+                    onToggle={() => {
+                      haptics.selection();
+                      setExpandedIndex((prev) => (prev === index ? -1 : index));
+                    }}
                     airlineLogos={search.airlineLogos}
                     onHydrate={handleHydrateOne}
                     isHydrating={hydratingIndex === index}
@@ -1300,6 +1734,7 @@ export default function SearchDetailScreen() {
       </View>
       {stickyHeaderOverlay}
       {overflowMenu}
+      {reSearchModal}
     </View>
   );
 }
@@ -1441,7 +1876,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 8,
+    marginBottom: 4,
   },
   routeCode: {
     fontFamily: fonts.extraBold,
@@ -1450,31 +1885,15 @@ const styles = StyleSheet.create({
     letterSpacing: -0.8,
     lineHeight: 32,
   },
-  routeArrowWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 12,
-  },
-  routeArrowLine: {
-    width: 32,
-    height: 1.5,
-    backgroundColor: "#CBD5E1",
-  },
-  routeArrowHead: {
-    width: 7,
-    height: 7,
-    borderRightWidth: 1.5,
-    borderTopWidth: 1.5,
-    borderColor: "#CBD5E1",
-    transform: [{ rotate: "45deg" }],
-    marginLeft: -4,
+  routeArrowSpacer: {
+    marginHorizontal: 8,
   },
 
   // ---- Price hero (type.hero: 36px ExtraBold) ----
 
   priceRow: {
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   priceHero: {
     fontFamily: fonts.extraBold,
@@ -1497,31 +1916,28 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    flexWrap: "wrap",
     marginBottom: 4,
+    gap: 0,
   },
   metaText: {
     fontFamily: fonts.medium,
-    fontSize: 15,
+    fontSize: 13,
     color: "#64748B",
     letterSpacing: 0.1,
   },
-  metaDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: "#CBD5E1",
-    marginHorizontal: 8,
-  },
-
-  // ---- Updated timestamp (type.micro) ----
-  updatedTimestamp: {
+  metaTimestamp: {
     fontFamily: fonts.medium,
-    fontSize: 12,
+    fontSize: 13,
     color: "#94A3B8",
     letterSpacing: -0.1,
-    lineHeight: 16,
-    marginBottom: 4,
-    textAlign: "center",
+  },
+  metaDot: {
+    width: 2.5,
+    height: 2.5,
+    borderRadius: 1.25,
+    backgroundColor: "#CBD5E1",
+    marginHorizontal: 7,
   },
 
   // ---- Action line: single compact tappable row ----
@@ -1552,34 +1968,21 @@ const styles = StyleSheet.create({
     color: "#2F9CF4",
   },
   actionLineAmber: {
-    fontFamily: fonts.medium,
-    fontSize: 14,
-    color: "#F59E0B",
-  },
-
-  // ---- Track price CTA button (warm accent, inviting) ----
-
-  trackPriceBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: "rgba(245, 158, 11, 0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(245, 158, 11, 0.2)",
-    minHeight: 44,
-  },
-  trackPriceBtnPressed: {
-    backgroundColor: "rgba(245, 158, 11, 0.15)",
-    transform: [{ scale: 0.97 }],
-  },
-  trackPriceBtnText: {
     fontFamily: fonts.semiBold,
-    fontSize: 15,
+    fontSize: 14,
     color: "#D97706",
-    flex: 1,
+  },
+  actionCreditPill: {
+    backgroundColor: "rgba(47, 156, 244, 0.08)",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  actionCreditText: {
+    fontFamily: fonts.semiBold,
+    fontSize: 11,
+    color: "#2F9CF4",
+    letterSpacing: 0.1,
   },
   actionLineRefreshing: {
     fontFamily: fonts.medium,
@@ -1593,87 +1996,75 @@ const styles = StyleSheet.create({
     backgroundColor: "#CBD5E1",
   },
 
-  // ---- Inline tracking activation expansion ----
+  // ---- Compact tracking duration strip ----
 
-  trackingExpansion: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(148, 163, 184, 0.2)",
-    alignItems: "center",
+  trackingStrip: {
+    marginTop: 4,
+    marginBottom: 0,
   },
-  trackingLabel: {
-    fontFamily: fonts.semiBold,
-    fontSize: 15,
-    color: "#0F172A",
-    letterSpacing: 0.1,
-    marginBottom: 12,
-    textAlign: "center",
-  },
-  trackingChipsRow: {
+  trackingStripContent: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 14,
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 4,
   },
   trackingChip: {
     alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
     backgroundColor: "rgba(148, 163, 184, 0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.15)",
-    gap: 2,
+    gap: 1,
   },
   trackingChipActive: {
     backgroundColor: "rgba(47, 156, 244, 0.1)",
+    borderWidth: 1,
     borderColor: "rgba(47, 156, 244, 0.3)",
   },
   trackingChipText: {
-    fontFamily: fonts.medium,
+    fontFamily: fonts.semiBold,
     fontSize: 13,
     color: "#94A3B8",
+    letterSpacing: -0.1,
   },
   trackingChipTextActive: {
     color: "#2F9CF4",
-    fontFamily: fonts.semiBold,
   },
   trackingChipCredits: {
     fontFamily: fonts.medium,
     fontSize: 11,
     color: "#94A3B8",
-    letterSpacing: 0.1,
+    letterSpacing: 0.2,
   },
   trackingChipCreditsActive: {
     color: "#2F9CF4",
   },
-  trackingActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  activateBtn: {
+  trackBtn: {
     backgroundColor: "#2F9CF4",
-    borderRadius: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    minHeight: 44,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    minHeight: 34,
     alignItems: "center",
     justifyContent: "center",
+    marginLeft: 2,
   },
-  activateBtnPressed: {
+  trackBtnPressed: {
     backgroundColor: "#1A7ED4",
     transform: [{ scale: 0.97 }],
   },
-  activateBtnDisabled: {
+  trackBtnDisabled: {
     opacity: 0.6,
   },
-  activateBtnText: {
+  trackBtnText: {
     fontFamily: fonts.bold,
-    fontSize: 14,
+    fontSize: 13,
     color: "#FFFFFF",
-    letterSpacing: 0.1,
+    letterSpacing: -0.1,
+  },
+  trackingDismissWrap: {
+    justifyContent: "center",
+    paddingVertical: 4,
   },
   trackingDismiss: {
     fontFamily: fonts.medium,
@@ -1683,7 +2074,7 @@ const styles = StyleSheet.create({
 
   // ---- Hero spacer ----
   heroSpacer: {
-    height: 16,
+    height: 10,
   },
 
   // ---- Section divider ----
@@ -1697,7 +2088,7 @@ const styles = StyleSheet.create({
   // ---- Slab header: results count + inline airline chips ----
   slabHeader: {
     paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingTop: 8,
     paddingBottom: 8,
   },
   slabTopRow: {
@@ -1817,6 +2208,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#EF4444",
   },
+  overflowMenuItemPressedBlue: {
+    backgroundColor: "rgba(47, 156, 244, 0.06)",
+  },
+  overflowMenuItemTextBlue: {
+    fontFamily: fonts.medium,
+    fontSize: 15,
+    color: "#2F9CF4",
+  },
+  overflowMenuDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#E2E8F0",
+    marginHorizontal: 10,
+  },
 
   // ---- Empty state ----
   emptyWrap: {
@@ -1866,5 +2270,193 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 48,
     paddingHorizontal: 20,
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Re-search modal styles
+// ---------------------------------------------------------------------------
+
+const rsStyles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: "#FAFCFF",
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#E2E8F0",
+  },
+  title: {
+    fontFamily: fonts.bold,
+    fontSize: 18,
+    color: "#0F172A",
+    letterSpacing: -0.3,
+  },
+  closeText: {
+    fontFamily: fonts.medium,
+    fontSize: 15,
+    color: "#94A3B8",
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 32,
+  },
+  sectionLabel: {
+    fontFamily: fonts.semiBold,
+    fontSize: 14,
+    color: "#0F172A",
+    letterSpacing: -0.2,
+    marginBottom: 8,
+    marginTop: 20,
+  },
+  sectionSub: {
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    color: "#94A3B8",
+    marginBottom: 10,
+    marginTop: -4,
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "rgba(148, 163, 184, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.15)",
+  },
+  chipActive: {
+    backgroundColor: "rgba(47, 156, 244, 0.1)",
+    borderColor: "rgba(47, 156, 244, 0.3)",
+  },
+  chipText: {
+    fontFamily: fonts.semiBold,
+    fontSize: 13,
+    color: "#94A3B8",
+    letterSpacing: -0.1,
+  },
+  chipTextActive: {
+    color: "#2F9CF4",
+  },
+  toggleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 20,
+    marginBottom: 4,
+  },
+  switchTrack: {
+    width: 46,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#E2E8F0",
+    justifyContent: "center",
+  },
+  switchTrackOn: {
+    backgroundColor: "#3B82F6",
+  },
+  switchKnob: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  airlineChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  airlineChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+    backgroundColor: "rgba(47, 156, 244, 0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(47, 156, 244, 0.15)",
+  },
+  airlineChipExcluded: {
+    backgroundColor: "rgba(239, 68, 68, 0.06)",
+    borderColor: "rgba(239, 68, 68, 0.2)",
+  },
+  airlineChipText: {
+    fontFamily: fonts.semiBold,
+    fontSize: 12,
+    color: "#1A7ED4",
+    letterSpacing: -0.1,
+  },
+  airlineChipTextExcluded: {
+    color: "#EF4444",
+    textDecorationLine: "line-through",
+  },
+  clearText: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: "#2F9CF4",
+    paddingVertical: 7,
+  },
+  bottomBar: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 34,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E2E8F0",
+    backgroundColor: "#FAFCFF",
+  },
+  creditRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  creditLabel: {
+    fontFamily: fonts.semiBold,
+    fontSize: 13,
+    color: "#0F172A",
+  },
+  balanceLabel: {
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    color: "#94A3B8",
+  },
+  searchBtn: {
+    backgroundColor: "#2F9CF4",
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchBtnPressed: {
+    backgroundColor: "#1A7ED4",
+    transform: [{ scale: 0.98 }],
+  },
+  searchBtnDisabled: {
+    opacity: 0.6,
+  },
+  searchBtnText: {
+    fontFamily: fonts.bold,
+    fontSize: 15,
+    color: "#FFFFFF",
+    letterSpacing: -0.2,
   },
 });

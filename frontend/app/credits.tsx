@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fonts } from "../src/theme";
 import { useCredits } from "../src/providers/CreditsProvider";
+import { useHaptics } from "../src/providers/HapticsProvider";
 import MeshBackground from "../src/components/ui/MeshBackground";
 import BottomNavBar from "../src/components/ui/BottomNavBar";
 import api from "../src/lib/api/client";
@@ -114,6 +115,7 @@ function AnimatedBalance({ value }: { value: number }) {
 export default function CreditsScreen() {
   const insets = useSafeAreaInsets();
   const { balance, transactions, refresh } = useCredits();
+  const haptics = useHaptics();
   const [purchasing, setPurchasing] = useState<string | null>(null);
 
   // Entrance animation
@@ -128,12 +130,15 @@ export default function CreditsScreen() {
   }, []);
 
   const handlePurchase = async (packId: string) => {
+    haptics.medium();
     setPurchasing(packId);
     try {
       await api.post("/credits/purchase", { packId });
       await refresh();
+      haptics.success();
       Alert.alert("Credits added", "Your credits have been added.");
     } catch (err: any) {
+      haptics.error();
       Alert.alert("Error", err.response?.data?.error || "Purchase failed");
     } finally {
       setPurchasing(null);

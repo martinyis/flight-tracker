@@ -33,6 +33,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Path } from "react-native-svg";
 import FlightPriceWave, { WAVE_AREA_H } from "../src/components/welcome/FlightPriceWave";
 import { useAuth } from "../src/providers/AuthProvider";
+import { useHaptics } from "../src/providers/HapticsProvider";
 import { useGoogleAuth } from "../src/hooks/useGoogleAuth";
 import { useAppleAuth } from "../src/hooks/useAppleAuth";
 import { fonts } from "../src/theme";
@@ -159,6 +160,7 @@ function GoogleIcon() {
 export default function WelcomeScreen() {
   const router = useRouter();
   const { loginWithToken } = useAuth();
+  const haptics = useHaptics();
 
   const [error, setError] = useState("");
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -168,11 +170,13 @@ export default function WelcomeScreen() {
     useGoogleAuth(
       async (token) => {
         setGoogleLoading(false);
+        haptics.success();
         await loginWithToken(token);
         router.replace("/");
       },
       (message) => {
         setGoogleLoading(false);
+        haptics.error();
         setError(message);
       }
     );
@@ -180,22 +184,26 @@ export default function WelcomeScreen() {
   const { signIn: appleSignIn } = useAppleAuth(
     async (token) => {
       setAppleLoading(false);
+      haptics.success();
       await loginWithToken(token);
       router.replace("/");
     },
     (message) => {
       setAppleLoading(false);
+      haptics.error();
       setError(message);
     }
   );
 
   const handleGoogleSignIn = async () => {
+    haptics.medium();
     setError("");
     setGoogleLoading(true);
     await promptGoogleAsync();
   };
 
   const handleAppleSignIn = async () => {
+    haptics.medium();
     setError("");
     setAppleLoading(true);
     await appleSignIn();

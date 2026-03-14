@@ -31,6 +31,7 @@ import type {
 import AppButton from "../src/components/ui/AppButton";
 import SearchingOverlay from "../src/components/wizard/SearchingOverlay";
 import { useCredits } from "../src/providers/CreditsProvider";
+import { useHaptics } from "../src/providers/HapticsProvider";
 import { Check, PlaneTakeoff, PlaneLanding, Calendar, CornerDownLeft, ChevronRight, ChevronUp, ChevronDown, ArrowRight } from "lucide-react-native";
 
 // Enable LayoutAnimation on Android
@@ -273,6 +274,7 @@ function ToggleSwitch({ value, onToggle }: ToggleSwitchProps) {
 
 export default function AddSearchScreen() {
   const router = useRouter();
+  const haptics = useHaptics();
   const { balance, refresh: refreshCredits } = useCredits();
   const [step, setStep] = useState<WizardStep>("form");
   const [formData, setFormData] = useState<WizardFormData>({
@@ -354,11 +356,12 @@ export default function AddSearchScreen() {
     setFormData((prev) => {
       const next = { ...prev, ...updates };
       if (updates.tripType && updates.tripType !== prev.tripType) {
+        haptics.light();
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       }
       return next;
     });
-  }, []);
+  }, [haptics]);
 
   const openAirportModal = useCallback(
     (field: "origin" | "destination") => {
@@ -394,14 +397,16 @@ export default function AddSearchScreen() {
 
   const goToSection = useCallback(
     (id: SectionId) => {
+      haptics.selection();
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setActiveSection(id);
     },
-    []
+    [haptics]
   );
 
   const completeSection = useCallback(
     (current: SectionId) => {
+      haptics.medium();
       const idx = sectionOrder.indexOf(current);
       const next = sectionOrder[idx + 1];
       setCompletedSections((prev) => {
@@ -414,7 +419,7 @@ export default function AddSearchScreen() {
         setActiveSection(next);
       }
     },
-    [sectionOrder]
+    [sectionOrder, haptics]
   );
 
   const isSectionDone = (id: SectionId) => completedSections.has(id);
@@ -472,6 +477,7 @@ export default function AddSearchScreen() {
   // ---------------------------------------------------------------------------
 
   const openPicker = (target: PickerTarget) => {
+    haptics.light();
     setActivePicker(target);
     setSheetVisible(true);
     sheetY.setValue(SHEET_HEIGHT);
@@ -544,6 +550,7 @@ export default function AddSearchScreen() {
     field: "minNights" | "maxNights",
     delta: number
   ) => {
+    haptics.selection();
     const current = Number(formData[field]) || 0;
     const next = Math.max(1, Math.min(maxPossibleNights, current + delta));
     updateForm({ [field]: String(next) });
@@ -611,9 +618,11 @@ export default function AddSearchScreen() {
 
       const res = await api.post("/search", body, { timeout: 120_000 });
       await refreshCredits();
+      haptics.success();
       const saved = res.data.search;
       router.replace(`/search/${saved.id}`);
     } catch (e: any) {
+      haptics.error();
       const status = e.response?.status;
       const code = e.response?.data?.code;
       if (status === 402 && code === "INSUFFICIENT_CREDITS") {
@@ -1060,14 +1069,15 @@ export default function AddSearchScreen() {
                         styles.chipActive,
                       pressed && styles.chipPressed,
                     ]}
-                    onPress={() =>
+                    onPress={() => {
+                      haptics.light();
                       updateForm({
                         apiFilters: {
                           ...formData.apiFilters,
                           stops: opt.val,
                         },
-                      })
-                    }
+                      });
+                    }}
                   >
                     <Text
                       style={[
@@ -1092,14 +1102,15 @@ export default function AddSearchScreen() {
                 </View>
                 <ToggleSwitch
                   value={!!formData.apiFilters.bags}
-                  onToggle={() =>
+                  onToggle={() => {
+                    haptics.light();
                     updateForm({
                       apiFilters: {
                         ...formData.apiFilters,
                         bags: !formData.apiFilters.bags,
                       },
-                    })
-                  }
+                    });
+                  }}
                 />
               </View>
 
@@ -1110,6 +1121,7 @@ export default function AddSearchScreen() {
                   pressed && styles.moreFiltersTogglePressed,
                 ]}
                 onPress={() => {
+                  haptics.selection();
                   LayoutAnimation.configureNext(
                     LayoutAnimation.Presets.easeInEaseOut
                   );
@@ -1146,14 +1158,15 @@ export default function AddSearchScreen() {
                           (formData.apiFilters.maxDuration ?? 0) ===
                             opt.value && styles.chipActive,
                         ]}
-                        onPress={() =>
+                        onPress={() => {
+                          haptics.light();
                           updateForm({
                             apiFilters: {
                               ...formData.apiFilters,
                               maxDuration: opt.value || undefined,
                             },
-                          })
-                        }
+                          });
+                        }}
                       >
                         <Text
                           style={[
@@ -1181,14 +1194,15 @@ export default function AddSearchScreen() {
                           (formData.apiFilters.airlineMode ?? "include") ===
                             mode && styles.chipActive,
                         ]}
-                        onPress={() =>
+                        onPress={() => {
+                          haptics.light();
                           updateForm({
                             apiFilters: {
                               ...formData.apiFilters,
                               airlineMode: mode,
                             },
-                          })
-                        }
+                          });
+                        }}
                       >
                         <Text
                           style={[

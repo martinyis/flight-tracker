@@ -72,6 +72,16 @@ export const updateProfile = asyncHandler(async (req: AuthRequest, res: Response
   res.json(user);
 });
 
+export const savePushToken = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const userId = Number(req.userId);
+  const { pushToken } = req.body;
+  await prisma.user.update({
+    where: { id: userId },
+    data: { pushToken },
+  });
+  res.json({ success: true });
+});
+
 export const deleteAccount = asyncHandler(async (req: AuthRequest, res: Response) => {
   const userId = Number(req.userId);
   await prisma.user.delete({ where: { id: userId } });

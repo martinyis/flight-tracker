@@ -1,6 +1,7 @@
 import { Pressable, View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { BlurView } from "expo-blur";
+import { useHaptics } from "../../providers/HapticsProvider";
 
 interface BackButtonProps {
   onPress?: () => void;
@@ -8,11 +9,12 @@ interface BackButtonProps {
 
 export default function BackButton({ onPress }: BackButtonProps) {
   const router = useRouter();
+  const haptics = useHaptics();
 
   return (
     <Pressable
       style={({ pressed }) => [styles.wrapper, pressed && styles.pressed]}
-      onPress={onPress ?? (() => router.back())}
+      onPress={() => { haptics.light(); (onPress ?? (() => router.back()))(); }}
       hitSlop={8}
     >
       <BlurView intensity={40} tint="light" style={styles.blur}>

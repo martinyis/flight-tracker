@@ -11,6 +11,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import AirlineLogo from "../ui/AirlineLogo";
 import { fonts } from "../../theme";
+import { useHaptics } from "../../providers/HapticsProvider";
 import {
   buildDeepLinkFromFlights,
   buildGoogleFlightsSearchUrl,
@@ -377,13 +378,15 @@ function RoundTripBookButton({
   origin: string;
   destination: string;
 }) {
+  const haptics = useHaptics();
   return (
     <Pressable
       style={({ pressed }) => [
         expandedStyles.bookBtn,
         pressed && expandedStyles.bookBtnPressed,
       ]}
-      onPress={() =>
+      onPress={() => {
+        haptics.medium();
         Linking.openURL(
           buildGoogleFlightsSearchUrl(
             origin,
@@ -391,8 +394,8 @@ function RoundTripBookButton({
             combo.outbound.date,
             combo.return.date
           )
-        )
-      }
+        );
+      }}
     >
       <Text style={expandedStyles.bookBtnText}>Book on Google Flights</Text>
     </Pressable>
@@ -408,19 +411,21 @@ function OneWayBookButton({
   origin: string;
   destination: string;
 }) {
+  const haptics = useHaptics();
   return (
     <Pressable
       style={({ pressed }) => [
         expandedStyles.bookBtn,
         pressed && expandedStyles.bookBtnPressed,
       ]}
-      onPress={() =>
+      onPress={() => {
+        haptics.medium();
         openBookingLink({
           outbound: leg,
           origin,
           destination,
-        })
-      }
+        });
+      }}
     >
       <Text style={expandedStyles.bookBtnText}>Book on Google Flights</Text>
     </Pressable>

@@ -26,7 +26,7 @@ export async function appleAuth(
   identityToken: string
 ): Promise<{ user: User; token: string }> {
   const payload = await appleSignin.verifyIdToken(identityToken, {
-    audience: "com.martinyis.flighttracker",
+    audience: "com.martinyis.skylens",
     ignoreExpiration: false,
   });
 

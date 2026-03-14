@@ -12,6 +12,12 @@ export const appleLoginSchema = {
   }),
 };
 
+export const pushTokenSchema = {
+  body: z.object({
+    pushToken: z.string({ error: "Push token is required" }),
+  }),
+};
+
 export const updateProfileSchema = {
   body: z
     .object({

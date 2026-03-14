@@ -4,7 +4,7 @@ import { validate } from "../middleware/validate";
 import {
   createSearchSchema, searchIdParam, bookingUrlSchema,
   updateFiltersSchema, refreshSearchSchema, activateTrackingSchema,
-  hydrateOneSchema, reSearchSchema,
+  hydrateOneSchema, reSearchSchema, paidRefreshSchema,
 } from "../schemas/searchSchemas";
 
 const router = Router();
@@ -17,6 +17,7 @@ router.delete("/:id", validate(searchIdParam), ctrl.deleteSearch);
 router.patch("/:id/toggle", validate(searchIdParam), ctrl.toggleSearch);
 router.patch("/:id/filters", validate({ ...searchIdParam, ...updateFiltersSchema }), ctrl.updateFilters);
 router.post("/:id/refresh", validate({ ...searchIdParam, ...refreshSearchSchema }), ctrl.refreshSearch);
+router.post("/:id/paid-refresh", validate({ ...searchIdParam, ...paidRefreshSchema }), ctrl.paidRefresh);
 router.post("/:id/hydrate", validate(searchIdParam), ctrl.hydrateSearch);
 router.post("/:id/activate-tracking", validate({ ...searchIdParam, ...activateTrackingSchema }), ctrl.activateTracking);
 router.post("/:id/hydrate-one", validate({ ...searchIdParam, ...hydrateOneSchema }), ctrl.hydrateOne);

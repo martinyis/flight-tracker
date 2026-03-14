@@ -25,6 +25,7 @@ import {
 } from "../lib/utils/airportSearch";
 import { fonts } from "../theme";
 import { Search, X, MapPin } from "lucide-react-native";
+import { useHaptics } from "../providers/HapticsProvider";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -205,6 +206,7 @@ export default function AirportSearchModal({
   const [recents, setRecents] = useState<AirportSelection[]>([]);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [selectedIata, setSelectedIata] = useState<string | null>(null);
+  const haptics = useHaptics();
   const inputRef = useRef<TextInput>(null);
 
   // Animation values
@@ -299,6 +301,7 @@ export default function AirportSearchModal({
           : airport;
 
       // Flash the selected row briefly before closing
+      haptics.light();
       setSelectedIata(selection.iata);
       saveRecentAirport(selection);
       onSelect(selection);

@@ -12,14 +12,17 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
-import Svg, { Polyline, Circle } from "react-native-svg";
+import Svg, { Polyline, Defs, LinearGradient as SvgGradient, Stop, Polygon, Rect, Mask, G } from "react-native-svg";
 import { ChevronRight } from "lucide-react-native";
 import api from "../src/lib/api/client";
 import MeshBackground from "../src/components/ui/MeshBackground";
 import BottomNavBar from "../src/components/ui/BottomNavBar";
+import { useAuth } from "../src/providers/AuthProvider";
+import { useHaptics } from "../src/providers/HapticsProvider";
 import { fonts } from "../src/theme";
 import { getCityByIata } from "../src/lib/utils/airportSearch";
 import { timeAgo } from "../src/lib/utils/time";
+import RouteArrow from "../src/components/ui/RouteArrow";
 
 // ---------------------------------------------------------------------------
 // Colors
@@ -171,41 +174,64 @@ function Sparkline({
   history: { date: string; cheapestPrice: number }[];
   currentPrice: number | null;
 }) {
-  if (!history || history.length < 2 || currentPrice == null) return null;
+  if (!history || history.length < 3 || currentPrice == null) return null;
 
-  const W = 56;
-  const H = 22;
-  const P = 2;
+  const W = 64;
+  const H = 28;
+  const P = 3; // padding
   const prices = history.map((h) => h.cheapestPrice);
   const min = Math.min(...prices);
   const max = Math.max(...prices);
   const range = max - min || 1;
 
-  const pts = prices
-    .map((p, i) => {
-      const x = P + (i / (prices.length - 1)) * (W - P * 2);
-      const y = P + (1 - (p - min) / range) * (H - P * 2);
-      return `${x},${y}`;
-    })
-    .join(" ");
+  const points = prices.map((p, i) => {
+    const x = P + (i / (prices.length - 1)) * (W - P * 2);
+    const y = P + (1 - (p - min) / range) * (H - P * 2);
+    return { x, y };
+  });
 
-  const lx = W - P;
-  const ly = P + (1 - (prices[prices.length - 1] - min) / range) * (H - P * 2);
+  const linePts = points.map((p) => `${p.x},${p.y}`).join(" ");
 
-  const color =
-    currentPrice < prices[0] ? C.green : currentPrice > prices[0] ? C.red : C.n400;
+  // Closed polygon for the fill area (line points + bottom corners)
+  const fillPts =
+    linePts +
+    ` ${points[points.length - 1].x},${H} ${points[0].x},${H}`;
+
+  const trending =
+    currentPrice < prices[0] ? "down" : currentPrice > prices[0] ? "up" : "flat";
+  const color = trending === "down" ? C.green : trending === "up" ? C.red : C.n400;
+  const gradId = `spark-${trending}`;
+
+  const maskId = `${gradId}-mask`;
 
   return (
     <Svg width={W} height={H}>
-      <Polyline
-        points={pts}
-        fill="none"
-        stroke={color}
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <Circle cx={lx} cy={ly} r={2.5} fill={color} />
+      <Defs>
+        {/* Vertical gradient for the area fill */}
+        <SvgGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={color} stopOpacity={0.18} />
+          <Stop offset="1" stopColor={color} stopOpacity={0} />
+        </SvgGradient>
+        {/* Horizontal opacity mask: fade in from left */}
+        <SvgGradient id={`${maskId}-g`} x1="0" y1="0" x2="1" y2="0">
+          <Stop offset="0" stopColor="#fff" stopOpacity={0} />
+          <Stop offset="0.25" stopColor="#fff" stopOpacity={1} />
+        </SvgGradient>
+        <Mask id={maskId}>
+          <Rect x={0} y={0} width={W} height={H} fill={`url(#${maskId}-g)`} />
+        </Mask>
+      </Defs>
+      <G mask={`url(#${maskId})`}>
+        <Polygon points={fillPts} fill={`url(#${gradId})`} />
+        <Polyline
+          points={linePts}
+          fill="none"
+          stroke={color}
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </G>
     </Svg>
   );
 }
@@ -330,10 +356,7 @@ function SearchRow({
         <View style={rS.topLine}>
           <View style={rS.routeWrap}>
             <Text style={[rS.code, !item.active && rS.muted]}>{item.origin}</Text>
-            <View style={rS.arrow}>
-              <View style={rS.arrowLine} />
-              <View style={rS.arrowHead} />
-            </View>
+            <RouteArrow width={28} color={C.n300} />
             <Text style={[rS.code, !item.active && rS.muted]}>{item.destination}</Text>
           </View>
           <View style={rS.priceArea}>
@@ -399,17 +422,6 @@ const rS = StyleSheet.create({
     fontSize: 21,
     color: C.n900,
     letterSpacing: -0.6,
-  },
-  arrow: { flexDirection: "row", alignItems: "center", width: 24 },
-  arrowLine: { flex: 1, height: 1.5, backgroundColor: C.n300 },
-  arrowHead: {
-    width: 6,
-    height: 6,
-    borderRightWidth: 1.5,
-    borderTopWidth: 1.5,
-    borderColor: C.n300,
-    transform: [{ rotate: "45deg" }],
-    marginLeft: -3,
   },
   priceArea: { flexDirection: "row", alignItems: "center", gap: 8 },
   price: {
@@ -857,6 +869,7 @@ const iS = StyleSheet.create({
 
 export default function HomeScreen() {
   const router = useRouter();
+  const haptics = useHaptics();
   const insets = useSafeAreaInsets();
   const [searches, setSearches] = useState<SavedSearchSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -877,11 +890,13 @@ export default function HomeScreen() {
   useFocusEffect(useCallback(() => { fetchSearches(); }, []));
 
   const onRefresh = () => {
+    haptics.light();
     setRefreshing(true);
     fetchSearches();
   };
 
-  const greeting = getGreeting();
+  const { userName } = useAuth();
+  const greeting = userName ? `${getGreeting()}, ${userName}` : getGreeting();
   const headline = getSmartHeadline(searches);
   const hasSearches = !loading && searches.length > 0;
 
@@ -935,7 +950,7 @@ export default function HomeScreen() {
           {loading ? (
             <LoadingState />
           ) : searches.length === 0 ? (
-            <OnboardingState onAdd={() => router.push("/add-search")} />
+            <OnboardingState onAdd={() => { haptics.medium(); router.push("/add-search"); }} />
           ) : (
             <>
               <View>
@@ -944,7 +959,7 @@ export default function HomeScreen() {
                     key={item.id}
                     item={item}
                     index={i}
-                    onPress={() => router.push(`/search/${item.id}`)}
+                    onPress={() => { haptics.light(); router.push(`/search/${item.id}`); }}
                     isLast={i === searches.length - 1}
                   />
                 ))}

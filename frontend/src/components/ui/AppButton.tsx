@@ -1,5 +1,6 @@
 import { Text, Pressable, View, ActivityIndicator, StyleSheet } from "react-native";
 import { fonts } from "../../theme";
+import { useHaptics } from "../../providers/HapticsProvider";
 
 interface AppButtonProps {
   label: string;
@@ -16,12 +17,13 @@ export default function AppButton({
   loading = false,
   variant = "primary",
 }: AppButtonProps) {
+  const haptics = useHaptics();
   const isDisabled = disabled || loading;
 
   if (variant === "secondary") {
     return (
       <Pressable
-        onPress={onPress}
+        onPress={() => { haptics.light(); onPress(); }}
         disabled={isDisabled}
         style={({ pressed }) => [
           styles.secondary,
@@ -43,7 +45,7 @@ export default function AppButton({
 
   return (
     <Pressable
-      onPress={onPress}
+      onPress={() => { haptics.medium(); onPress(); }}
       disabled={isDisabled}
       style={({ pressed }) => [
         styles.container,

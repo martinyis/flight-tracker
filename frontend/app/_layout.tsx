@@ -18,6 +18,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { AuthProvider, useAuth } from "../src/providers/AuthProvider";
 import { CreditsProvider } from "../src/providers/CreditsProvider";
+import { HapticsProvider } from "../src/providers/HapticsProvider";
 import { fonts } from "../src/theme";
 
 SplashScreen.preventAutoHideAsync();
@@ -122,13 +123,15 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <CreditsProvider>
-          <BottomSheetModalProvider>
-            <RootLayoutNav />
-          </BottomSheetModalProvider>
-        </CreditsProvider>
-      </AuthProvider>
+      <HapticsProvider>
+        <AuthProvider>
+          <CreditsProvider>
+            <BottomSheetModalProvider>
+              <RootLayoutNav />
+            </BottomSheetModalProvider>
+          </CreditsProvider>
+        </AuthProvider>
+      </HapticsProvider>
     </GestureHandlerRootView>
   );
 }

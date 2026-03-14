@@ -97,3 +97,16 @@ export const reSearchSchema = {
       .min(1, "excludeAirlines (non-empty array) is required"),
   }),
 };
+
+export const paidRefreshSchema = {
+  body: z.object({
+    apiFilters: z
+      .object({
+        stops: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
+        excludeAirlines: z.array(z.string()).optional(),
+        maxDuration: z.number().int().min(1).max(2880).optional(),
+        bags: z.union([z.literal(0), z.literal(1)]).optional(),
+      })
+      .optional(),
+  }),
+};

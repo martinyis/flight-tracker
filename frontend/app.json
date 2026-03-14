@@ -1,21 +1,21 @@
 {
   "expo": {
-    "name": "Flight Tracker",
-    "slug": "flight-tracker",
+    "name": "SkyLens",
+    "slug": "skylens",
     "version": "1.0.0",
-    "scheme": "flight-tracker",
+    "scheme": "skylens",
     "icon": "./src/assets/images/this-is-way-better---the-plane-is-there--the-arc-w.png",
     "platforms": [
       "ios",
       "android"
     ],
     "ios": {
-      "bundleIdentifier": "com.martinyis.flighttracker",
+      "bundleIdentifier": "com.martinyis.skylens",
       "infoPlist": {
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
-              "flight-tracker",
+              "skylens",
               "com.googleusercontent.apps.949286619491-de0rldlh2qoljftscfdb08sk52h6gf6e"
             ]
           }
@@ -27,6 +27,14 @@
       "expo-secure-store",
       "expo-font",
       "expo-apple-authentication"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "fd5ff44c-2a9e-4a5f-a813-c1df1e8bbab4"
+      }
+    },
+    "android": {
+      "package": "com.martinyis.skylens"
+    }
   }
 }

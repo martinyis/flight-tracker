@@ -13,6 +13,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import AppButton from "../ui/AppButton";
 import AirlineLogo from "../ui/AirlineLogo";
 import { fonts } from "../../theme";
+import { useHaptics } from "../../providers/HapticsProvider";
 
 // ---------------------------------------------------------------------------
 // Layout constants
@@ -104,7 +105,9 @@ function Bubble({
     }).start();
   }, [isSelected]);
 
+  const haptics = useHaptics();
   const handlePress = () => {
+    haptics.light();
     Animated.sequence([
       Animated.spring(tapScale, { toValue: isSelected ? 0.9 : 1.12, tension: 300, friction: 7, useNativeDriver: true }),
       Animated.spring(tapScale, { toValue: 1, tension: 220, friction: 9, useNativeDriver: true }),
@@ -207,6 +210,7 @@ export default function AirlineFilterStep({
   onConfirm: (selectedAirlines: string[]) => void;
   onSkip: () => void;
 }) {
+  const haptics = useHaptics();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [applying, setApplying] = useState(false);
 
@@ -217,8 +221,8 @@ export default function AirlineFilterStep({
       return next;
     });
 
-  const selectAll = () => setSelected(new Set(availableAirlines));
-  const clearAll  = () => setSelected(new Set());
+  const selectAll = () => { haptics.light(); setSelected(new Set(availableAirlines)); };
+  const clearAll  = () => { haptics.light(); setSelected(new Set()); };
 
   const handleApply = async () => {
     setApplying(true);

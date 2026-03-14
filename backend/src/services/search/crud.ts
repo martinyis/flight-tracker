@@ -106,7 +106,7 @@ export async function createSavedSearch(
   // Deduct credits
   const searchCreditCost = computeSearchCredits(comboCount);
   const routeLabel = `Search: ${origin.toUpperCase()}-${destination.toUpperCase()}`;
-  const remainingBalance = await deductCredits(uid, searchCreditCost, "search", null, routeLabel);
+  let remainingBalance = await deductCredits(uid, searchCreditCost, "search", null, routeLabel);
 
   // Create the search record
   let search = await prisma.savedSearch.create({
@@ -188,9 +188,22 @@ export async function createSavedSearch(
     throw err;
   }
 
+  // Refund credits if the search returned 5 or fewer results
+  const resultCount = readLatestResults(search.latestResults).length;
+  let creditsCharged = searchCreditCost;
+  if (resultCount <= 5) {
+    remainingBalance = await refundCredits(uid, searchCreditCost, search.id,
+      `Refund: ${routeLabel} (only ${resultCount} result${resultCount === 1 ? "" : "s"} found)`);
+    creditsCharged = 0;
+    await prisma.savedSearch.update({
+      where: { id: search.id },
+      data: { searchCredits: 0 },
+    });
+  }
+
   return {
     search: search as unknown as TypedSavedSearch,
-    creditsCharged: searchCreditCost,
+    creditsCharged,
     remainingBalance,
     resultsError,
   };
