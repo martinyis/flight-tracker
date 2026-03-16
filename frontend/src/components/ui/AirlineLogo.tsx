@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { View, Image, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
+import { Image } from "expo-image";
 import { fonts } from "../../theme";
 
 // ---------------------------------------------------------------------------
@@ -81,7 +82,8 @@ export default function AirlineLogo({
             width: size * 0.78,
             height: size * 0.78,
           }}
-          resizeMode="contain"
+          contentFit="contain"
+          cachePolicy="disk"
           onError={() => setFailed(true)}
         />
       </View>

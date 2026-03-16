@@ -18,7 +18,7 @@ interface UseGoogleAuthReturn {
 }
 
 export function useGoogleAuth(
-  onSuccess: (token: string) => Promise<void>,
+  onSuccess: (accessToken: string, refreshToken: string) => Promise<void>,
   onError: (message: string) => void
 ): UseGoogleAuthReturn {
   const onSuccessRef = useRef(onSuccess);
@@ -64,12 +64,12 @@ export function useGoogleAuth(
 
 async function handleGoogleToken(
   idToken: string,
-  onSuccess: (token: string) => Promise<void>,
+  onSuccess: (accessToken: string, refreshToken: string) => Promise<void>,
   onError: (message: string) => void
 ): Promise<void> {
   try {
     const res = await api.post("/auth/google", { idToken });
-    await onSuccess(res.data.token);
+    await onSuccess(res.data.accessToken, res.data.refreshToken);
   } catch (e: any) {
     onError(
       e.response?.data?.error ?? e.message ?? "Google sign-in failed"

@@ -1,3 +1,7 @@
+import logger from "../config/logger";
+
+const log = logger.child({ component: "pushNotification" });
+
 interface PushMessage {
   to: string;
   title: string;
@@ -16,9 +20,10 @@ export async function sendPushNotification(message: PushMessage): Promise<void> 
       body: JSON.stringify(message),
     });
     if (!res.ok) {
-      console.error("[Push] Failed to send:", res.status, await res.text());
+      const body = await res.text();
+      log.error({ status: res.status, body }, "Push notification failed");
     }
   } catch (err) {
-    console.error("[Push] Error sending notification:", err);
+    log.error({ err }, "Push notification error");
   }
 }

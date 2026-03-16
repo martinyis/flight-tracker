@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { AppError } from "../errors/AppError";
+import logger from "../config/logger";
 
 export function errorHandler(
   err: Error,
@@ -20,6 +21,6 @@ export function errorHandler(
   }
 
   // Unknown / unhandled errors
-  console.error(err.stack);
+  logger.error({ err }, "Unhandled error");
   res.status(500).json({ error: "Internal server error" });
 }

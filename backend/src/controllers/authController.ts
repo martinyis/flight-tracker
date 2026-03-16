@@ -6,13 +6,26 @@ import prisma from "../config/db";
 import { NotFoundError } from "../errors/AppError";
 
 export const appleLogin = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { user, token } = await authService.appleAuth(req.body.identityToken);
-  res.json({ token, user: { id: user.id, email: user.email } });
+  const { user, accessToken, refreshToken } = await authService.appleAuth(req.body.identityToken);
+  res.json({ accessToken, refreshToken, user: { id: user.id, email: user.email } });
 });
 
 export const googleLogin = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { user, token } = await authService.googleAuth(req.body.idToken);
-  res.json({ token, user: { id: user.id, email: user.email } });
+  const { user, accessToken, refreshToken } = await authService.googleAuth(req.body.idToken);
+  res.json({ accessToken, refreshToken, user: { id: user.id, email: user.email } });
+});
+
+export const refreshToken = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const result = await authService.rotateRefreshToken(req.body.refreshToken);
+  res.json({ accessToken: result.accessToken, refreshToken: result.refreshToken });
+});
+
+export const logout = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { refreshToken: rawToken } = req.body;
+  if (rawToken) {
+    await authService.revokeTokenByRaw(rawToken);
+  }
+  res.json({ message: "Logged out" });
 });
 
 export const getProfile = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -84,6 +97,7 @@ export const savePushToken = asyncHandler(async (req: AuthRequest, res: Response
 
 export const deleteAccount = asyncHandler(async (req: AuthRequest, res: Response) => {
   const userId = Number(req.userId);
+  await authService.revokeAllUserTokens(userId);
   await prisma.user.delete({ where: { id: userId } });
   res.json({ message: "Account deleted" });
 });

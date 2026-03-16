@@ -2,6 +2,9 @@ import { ApiFilters, RoundTripRawOption } from "../../types/search";
 import { SERP_COST_PER_CALL } from "../../config/constants";
 import { FlightLeg, SerpFlight } from "./types";
 import { diffDays } from "./dateUtils";
+import logger from "../../config/logger";
+
+const serpLog = logger.child({ component: "serpClient" });
 
 const SERP_BASE = "https://serpapi.com/search.json";
 
@@ -13,30 +16,32 @@ export interface Tracker {
 }
 
 export function createTracker(): Tracker {
-  const log: { type: string; detail: string; cost: number }[] = [];
+  const calls: { type: string; detail: string; cost: number }[] = [];
   let count = 0;
 
   return {
     track(type: string, detail: string) {
       count++;
-      log.push({ type, detail, cost: SERP_COST_PER_CALL });
-      console.log(`  [SerpAPI #${count}] ${type}: ${detail}  ($${SERP_COST_PER_CALL})`);
+      calls.push({ type, detail, cost: SERP_COST_PER_CALL });
+      serpLog.debug({ callNum: count, type, detail, cost: SERP_COST_PER_CALL }, "SerpAPI call");
     },
     printSummary(label: string) {
-      const totalCost = log.length * SERP_COST_PER_CALL;
-      const rtCalls = log.filter((c) => c.type === "searchRoundTrip").length;
-      const returnCalls = log.filter((c) => c.type === "fetchReturnLeg").length;
-      const owCalls = log.filter((c) => c.type === "searchOneWay").length;
+      const totalCost = calls.length * SERP_COST_PER_CALL;
+      const rtCalls = calls.filter((c) => c.type === "searchRoundTrip").length;
+      const returnCalls = calls.filter((c) => c.type === "fetchReturnLeg").length;
+      const owCalls = calls.filter((c) => c.type === "searchOneWay").length;
 
-      console.log("");
-      console.log(`  ┌─── API COST SUMMARY: ${label} ───`);
-      console.log(`  │  Total calls: ${log.length}`);
-      if (rtCalls > 0) console.log(`  │    Round-trip searches: ${rtCalls}`);
-      if (returnCalls > 0) console.log(`  │    Return leg fetches:  ${returnCalls}`);
-      if (owCalls > 0) console.log(`  │    One-way searches:    ${owCalls}`);
-      console.log(`  │  Total cost: $${totalCost.toFixed(3)}`);
-      console.log(`  └──────────────────────────────────`);
-      console.log("");
+      serpLog.info(
+        {
+          label,
+          totalCalls: calls.length,
+          roundTripCalls: rtCalls,
+          returnLegCalls: returnCalls,
+          oneWayCalls: owCalls,
+          totalCostUsd: parseFloat(totalCost.toFixed(3)),
+        },
+        "SerpAPI cost summary"
+      );
     },
   };
 }

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "SkyLens",
+    "name": "Airfare",
     "slug": "skylens",
     "version": "1.0.0",
     "scheme": "skylens",
@@ -33,6 +33,7 @@
         "projectId": "fd5ff44c-2a9e-4a5f-a813-c1df1e8bbab4"
       }
     },
+    "orientation": "portrait",
     "android": {
       "package": "com.martinyis.skylens"
     }

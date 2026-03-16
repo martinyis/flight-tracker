@@ -5,6 +5,7 @@ import {
   useState,
   ReactNode,
 } from "react";
+import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 import api from "../lib/api/client";
 import { registerForPushNotifications } from "../lib/utils/notifications";
@@ -13,7 +14,7 @@ interface AuthState {
   token: string | null;
   userName: string | null;
   isLoading: boolean;
-  loginWithToken: (token: string) => Promise<void>;
+  loginWithTokens: (accessToken: string, refreshToken: string) => Promise<void>;
   logout: () => Promise<void>;
   deleteAccount: () => Promise<void>;
 }
@@ -49,26 +50,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    SecureStore.getItemAsync("auth_token")
-      .then((stored) => {
-        if (stored) {
-          setToken(stored);
+    (async () => {
+      try {
+        const storedAccess = await SecureStore.getItemAsync("auth_token");
+        const storedRefresh = await SecureStore.getItemAsync("refresh_token");
+
+        if (storedAccess) {
+          setToken(storedAccess);
           fetchUserName();
           registerPushToken();
+        } else if (storedRefresh) {
+          // Access token expired/missing but refresh token exists — try to refresh
+          try {
+            const { data } = await axios.post(
+              `${api.defaults.baseURL}/auth/refresh`,
+              { refreshToken: storedRefresh },
+              { headers: { "Content-Type": "application/json" } }
+            );
+            await SecureStore.setItemAsync("auth_token", data.accessToken);
+            await SecureStore.setItemAsync("refresh_token", data.refreshToken);
+            setToken(data.accessToken);
+            fetchUserName();
+            registerPushToken();
+          } catch {
+            await SecureStore.deleteItemAsync("refresh_token");
+          }
         }
-      })
-      .finally(() => setIsLoading(false));
+      } finally {
+        setIsLoading(false);
+      }
+    })();
   }, []);
 
-  const loginWithToken = async (newToken: string) => {
-    await SecureStore.setItemAsync("auth_token", newToken);
-    setToken(newToken);
+  const loginWithTokens = async (accessToken: string, refreshToken: string) => {
+    await SecureStore.setItemAsync("auth_token", accessToken);
+    await SecureStore.setItemAsync("refresh_token", refreshToken);
+    setToken(accessToken);
     fetchUserName();
     registerPushToken();
   };
 
   const logout = async () => {
+    try {
+      const refreshToken = await SecureStore.getItemAsync("refresh_token");
+      if (refreshToken) {
+        await api.post("/auth/logout", { refreshToken });
+      }
+    } catch {
+      // Best-effort — still log out locally
+    }
     await SecureStore.deleteItemAsync("auth_token");
+    await SecureStore.deleteItemAsync("refresh_token");
     setToken(null);
     setUserName(null);
   };
@@ -76,12 +108,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const deleteAccount = async () => {
     await api.delete("/auth/me");
     await SecureStore.deleteItemAsync("auth_token");
+    await SecureStore.deleteItemAsync("refresh_token");
     setToken(null);
     setUserName(null);
   };
 
   return (
-    <AuthContext.Provider value={{ token, userName, isLoading, loginWithToken, logout, deleteAccount }}>
+    <AuthContext.Provider value={{ token, userName, isLoading, loginWithTokens, logout, deleteAccount }}>
       {children}
     </AuthContext.Provider>
   );

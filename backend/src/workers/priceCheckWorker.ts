@@ -1,5 +1,7 @@
 import cron from "node-cron";
 import prisma from "../config/db";
+import logger from "../config/logger";
+import { cleanupExpiredTokens } from "../services/authService";
 import { TripType, SearchFilters, ApiFilters, readSearchFilters, readApiFilters, readPriceHistory, readSentinelPairs } from "../types/search";
 import {
   fetchPriceOnly,
@@ -17,6 +19,8 @@ import {
   jsonRawLegs, jsonLatestResults, jsonAvailableAirlines,
   jsonAirlineLogos, jsonPriceHistory, jsonSentinelPairs,
 } from "../types/prismaJson";
+
+const log = logger.child({ component: "priceCheck" });
 
 let isRunning = false;
 
@@ -61,7 +65,7 @@ export function computeNextCheckAt(
 
 export async function runPriceCheck(): Promise<void> {
   if (isRunning) {
-    console.log("[PriceCheck] Skipping -- previous run still in progress");
+    log.warn("Skipping: previous run still in progress");
     return;
   }
 
@@ -76,7 +80,7 @@ export async function runPriceCheck(): Promise<void> {
       data: { active: false },
     });
     if (deactivated.count > 0) {
-      console.log(`[PriceCheck] Deactivated ${deactivated.count} expired searches`);
+      log.info({ count: deactivated.count }, "Deactivated expired searches");
     }
 
     // Auto-deactivate searches whose tracking window has expired
@@ -89,7 +93,7 @@ export async function runPriceCheck(): Promise<void> {
         AND "tracking_started_at" + ("tracking_days" || ' days')::interval < NOW()
     `;
     if (expiredTracking > 0) {
-      console.log(`[PriceCheck] Deactivated ${expiredTracking} searches with expired tracking window`);
+      log.info({ count: expiredTracking }, "Deactivated searches with expired tracking window");
     }
 
     // Load active, paid, non-expired searches that are due for check
@@ -107,7 +111,7 @@ export async function runPriceCheck(): Promise<void> {
     });
 
     if (searches.length === 0) {
-      console.log("[PriceCheck] No active searches due for check");
+      log.debug("No active searches due for check");
       return;
     }
 
@@ -223,9 +227,7 @@ export async function runPriceCheck(): Promise<void> {
               if (diff <= SENTINEL_TOLERANCE) {
                 needsFullScan = false;
                 sentinelSkips++;
-                console.log(
-                  `[PriceCheck] Sentinel OK for ${key} (diff=$${diff.toFixed(2)}) -- skipping full scan`
-                );
+                log.debug({ key, diff: diff.toFixed(2) }, "Sentinel OK — skipping full scan");
                 for (const searchId of group.searchIds) {
                   const s = searchesById.get(searchId)!;
                   const existingHistory = readPriceHistory(s.priceHistory);
@@ -239,9 +241,7 @@ export async function runPriceCheck(): Promise<void> {
                   });
                 }
               } else {
-                console.log(
-                  `[PriceCheck] Sentinel CHANGED for ${key} (diff=$${diff.toFixed(2)}) -- running full scan`
-                );
+                log.info({ key, diff: diff.toFixed(2) }, "Sentinel changed — running full scan");
               }
             }
           }
@@ -315,15 +315,13 @@ export async function runPriceCheck(): Promise<void> {
         searchesUpdated += group.searchIds.length;
       } catch (err) {
         errors++;
-        console.error(`[PriceCheck] Error for group ${key}:`, err);
+        log.error({ err, key }, "Error processing group");
       }
 
       await new Promise((r) => setTimeout(r, CRON_GROUP_DELAY_MS));
     }
 
-    console.log(
-      `[PriceCheck] Complete: ${groupsChecked} groups checked, ${searchesUpdated} searches updated, ${sentinelSkips} sentinel skips, ${errors} errors`
-    );
+    log.info({ groupsChecked, searchesUpdated, sentinelSkips, errors }, "Price check complete");
   } finally {
     isRunning = false;
   }
@@ -334,8 +332,18 @@ export function startPriceCheckCron(): void {
     try {
       await runPriceCheck();
     } catch (err) {
-      console.error("[PriceCheck] Cron error:", err);
+      log.error({ err }, "Cron error");
     }
   });
-  console.log("Price check cron scheduled (every 4 hours, adaptive per search)");
+  log.info("Price check cron scheduled (every 4 hours, adaptive per search)");
+
+  // Daily cleanup of expired/revoked refresh tokens at 3 AM
+  cron.schedule("0 3 * * *", async () => {
+    try {
+      const count = await cleanupExpiredTokens();
+      if (count > 0) log.info(`Cleaned up ${count} expired/revoked refresh tokens`);
+    } catch (err) {
+      log.error({ err }, "Refresh token cleanup error");
+    }
+  });
 }

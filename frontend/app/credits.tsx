@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
+  RefreshControl,
   Pressable,
   Alert,
   Animated,
@@ -117,6 +118,13 @@ export default function CreditsScreen() {
   const { balance, transactions, refresh } = useCredits();
   const haptics = useHaptics();
   const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refresh();
+    setRefreshing(false);
+  }, [refresh]);
 
   // Entrance animation
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -166,6 +174,9 @@ export default function CreditsScreen() {
             { paddingBottom: 100 + insets.bottom },
           ]}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         >
           <Animated.View style={{ opacity: fadeAnim }}>
             {/* ============================================================

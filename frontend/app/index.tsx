@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
-  ScrollView,
+  FlatList,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -292,12 +292,10 @@ function SearchRow({
   item,
   index,
   onPress,
-  isLast,
 }: {
   item: SavedSearchSummary;
   index: number;
   onPress: () => void;
-  isLast: boolean;
 }) {
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -401,7 +399,6 @@ function SearchRow({
           )}
         </View>
       </Pressable>
-      {!isLast && <View style={rS.divider} />}
     </Animated.View>
   );
 }
@@ -458,7 +455,7 @@ const rS = StyleSheet.create({
 
 // ---------------------------------------------------------------------------
 // Onboarding — Before / After split
-// Shows the pain of manual date checking vs what Skylens does for you
+// Shows the pain of manual date checking vs what Airfare does for you
 // ---------------------------------------------------------------------------
 
 function OnboardingState({ onAdd }: { onAdd: () => void }) {
@@ -515,7 +512,7 @@ function OnboardingState({ onAdd }: { onAdd: () => void }) {
       </Text>
 
       {/* ── "Without" section ── */}
-      <Text style={obS.sectionLabel}>WITHOUT SKYLENS</Text>
+      <Text style={obS.sectionLabel}>WITHOUT AIRFARE</Text>
       <View style={obS.painWrap}>
         {PAIN_DATES.map((d, i) => (
           <View key={i} style={obS.painRow}>
@@ -535,10 +532,10 @@ function OnboardingState({ onAdd }: { onAdd: () => void }) {
         <View style={obS.arrowPoint} />
       </View>
 
-      {/* ── "With Skylens" section ── */}
+      {/* ── "With Airfare" section ── */}
       <Animated.View style={{ opacity: fade2 }}>
         <Text style={[obS.sectionLabel, { color: C.primary }]}>
-          WITH SKYLENS
+          WITH AIRFARE
         </Text>
         <View style={obS.winWrap}>
           <View style={obS.winRow}>
@@ -665,7 +662,7 @@ const obS = StyleSheet.create({
     marginTop: -4,
   },
 
-  // "With Skylens" win section
+  // "With Airfare" win section
   winWrap: {
     gap: 12,
     marginBottom: 2,
@@ -916,7 +913,17 @@ export default function HomeScreen() {
       <MeshBackground />
 
       <View style={[s.safe, { paddingTop: insets.top }]}>
-        <ScrollView
+        <FlatList
+          data={hasSearches ? searches : []}
+          keyExtractor={(item) => String(item.id)}
+          renderItem={({ item, index }) => (
+            <SearchRow
+              item={item}
+              index={index}
+              onPress={() => { haptics.light(); router.push(`/search/${item.id}`); }}
+            />
+          )}
+          ItemSeparatorComponent={() => <View style={rS.divider} />}
           contentContainerStyle={[s.scroll, { paddingBottom: 100 + insets.bottom }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -927,47 +934,33 @@ export default function HomeScreen() {
               colors={[C.primary]}
             />
           }
-        >
-          {/* Header */}
-          <Animated.View style={[s.header, { opacity: fade }]}>
-            <Text style={s.greeting}>{greeting}</Text>
-            {headline !== "" && (
-              <Text style={s.headline}>{headline}</Text>
-            )}
-          </Animated.View>
-
-          {/* Divider separating header from content */}
-          {!loading && searches.length > 0 && (
-            <View style={s.headerDivider} />
-          )}
-
-          {/* Section label for searches */}
-          {hasSearches && (
-            <Text style={s.sectionLabel}>YOUR ROUTES</Text>
-          )}
-
-          {/* Content */}
-          {loading ? (
-            <LoadingState />
-          ) : searches.length === 0 ? (
-            <OnboardingState onAdd={() => { haptics.medium(); router.push("/add-search"); }} />
-          ) : (
+          ListHeaderComponent={
             <>
-              <View>
-                {searches.map((item, i) => (
-                  <SearchRow
-                    key={item.id}
-                    item={item}
-                    index={i}
-                    onPress={() => { haptics.light(); router.push(`/search/${item.id}`); }}
-                    isLast={i === searches.length - 1}
-                  />
-                ))}
-              </View>
-              <PriceIntelligence searches={searches} />
+              {/* Header */}
+              <Animated.View style={[s.header, { opacity: fade }]}>
+                <Text style={s.greeting}>{greeting}</Text>
+                {headline !== "" && (
+                  <Text style={s.headline}>{headline}</Text>
+                )}
+              </Animated.View>
+
+              {/* Divider separating header from content */}
+              {hasSearches && <View style={s.headerDivider} />}
+
+              {/* Section label for searches */}
+              {hasSearches && <Text style={s.sectionLabel}>YOUR ROUTES</Text>}
+
+              {/* Loading / Empty states */}
+              {loading && <LoadingState />}
+              {!loading && searches.length === 0 && (
+                <OnboardingState onAdd={() => { haptics.medium(); router.push("/add-search"); }} />
+              )}
             </>
-          )}
-        </ScrollView>
+          }
+          ListFooterComponent={
+            hasSearches ? <PriceIntelligence searches={searches} /> : null
+          }
+        />
 
         <BottomNavBar />
       </View>

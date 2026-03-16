@@ -159,7 +159,7 @@ function GoogleIcon() {
 
 export default function WelcomeScreen() {
   const router = useRouter();
-  const { loginWithToken } = useAuth();
+  const { loginWithTokens } = useAuth();
   const haptics = useHaptics();
 
   const [error, setError] = useState("");
@@ -168,10 +168,10 @@ export default function WelcomeScreen() {
 
   const { promptAsync: promptGoogleAsync, isReady: googleReady } =
     useGoogleAuth(
-      async (token) => {
+      async (accessToken, refreshToken) => {
         setGoogleLoading(false);
         haptics.success();
-        await loginWithToken(token);
+        await loginWithTokens(accessToken, refreshToken);
         router.replace("/");
       },
       (message) => {
@@ -182,10 +182,10 @@ export default function WelcomeScreen() {
     );
 
   const { signIn: appleSignIn } = useAppleAuth(
-    async (token) => {
+    async (accessToken, refreshToken) => {
       setAppleLoading(false);
       haptics.success();
-      await loginWithToken(token);
+      await loginWithTokens(accessToken, refreshToken);
       router.replace("/");
     },
     (message) => {
@@ -248,7 +248,7 @@ export default function WelcomeScreen() {
             },
           ]}
         >
-          <Text style={styles.brandName}>Skylens</Text>
+          <Text style={styles.brandName}>Airfare</Text>
           <Text style={styles.tagline}>
             We check every date so you don't have to.
           </Text>

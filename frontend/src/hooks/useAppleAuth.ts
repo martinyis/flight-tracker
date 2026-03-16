@@ -7,7 +7,7 @@ interface UseAppleAuthReturn {
 }
 
 export function useAppleAuth(
-  onSuccess: (token: string) => Promise<void>,
+  onSuccess: (accessToken: string, refreshToken: string) => Promise<void>,
   onError: (message: string) => void
 ): UseAppleAuthReturn {
   const signIn = useCallback(async () => {
@@ -26,7 +26,7 @@ export function useAppleAuth(
       }
 
       const res = await api.post("/auth/apple", { identityToken });
-      await onSuccess(res.data.token);
+      await onSuccess(res.data.accessToken, res.data.refreshToken);
     } catch (e: any) {
       if (e.code === "ERR_REQUEST_CANCELED") return;
       onError(e.response?.data?.error ?? e.message ?? "Apple sign-in failed");

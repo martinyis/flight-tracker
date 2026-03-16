@@ -18,6 +18,18 @@ export const pushTokenSchema = {
   }),
 };
 
+export const refreshTokenSchema = {
+  body: z.object({
+    refreshToken: z.string({ error: "Refresh token is required" }),
+  }),
+};
+
+export const logoutSchema = {
+  body: z.object({
+    refreshToken: z.string().optional(),
+  }),
+};
+
 export const updateProfileSchema = {
   body: z
     .object({
