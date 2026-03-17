@@ -334,10 +334,10 @@ export function startPriceCheckCron(): void {
     } catch (err) {
       log.error({ err }, "Cron error");
     }
-  });
-  log.info("Price check cron scheduled (every 4 hours, adaptive per search)");
+  }, { timezone: "UTC" });
+  log.info("Price check cron scheduled (every 4 hours UTC, adaptive per search)");
 
-  // Daily cleanup of expired/revoked refresh tokens at 3 AM
+  // Daily cleanup of expired/revoked refresh tokens at 3 AM UTC
   cron.schedule("0 3 * * *", async () => {
     try {
       const count = await cleanupExpiredTokens();
@@ -345,5 +345,5 @@ export function startPriceCheckCron(): void {
     } catch (err) {
       log.error({ err }, "Refresh token cleanup error");
     }
-  });
+  }, { timezone: "UTC" });
 }

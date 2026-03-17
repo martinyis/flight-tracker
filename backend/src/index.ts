@@ -13,10 +13,27 @@ import creditsRoutes from "./routes/credits";
 import { startPriceCheckCron } from "./workers/priceCheckWorker";
 import { globalLimiter } from "./middleware/rateLimiter";
 
+// Fail fast if critical env vars are missing
+const REQUIRED_ENV = [
+  "DATABASE_URL",
+  "JWT_SECRET",
+  "SERPAPI_KEY",
+  "GOOGLE_CLIENT_ID",
+  "APPLE_BUNDLE_ID",
+] as const;
+
+if (process.env.NODE_ENV !== "test") {
+  const missing = REQUIRED_ENV.filter((k) => !process.env[k]);
+  if (missing.length > 0) {
+    logger.fatal({ missing }, "Missing required environment variables");
+    process.exit(1);
+  }
+}
+
 export function createApp() {
   const app = express();
 
-  // Required for correct client IP behind reverse proxy (AWS ALB, nginx, etc.)
+  // Required for correct client IP behind reverse proxy (Railway, ALB, nginx, etc.)
   app.set("trust proxy", 1);
 
   app.use(helmet());
@@ -27,7 +44,7 @@ export function createApp() {
         : "http://localhost:8081",
     })
   );
-  app.use(express.json());
+  app.use(express.json({ limit: "100kb" }));
 
   if (process.env.NODE_ENV !== "test") {
     app.use(
