@@ -20,8 +20,7 @@ try {
   process.exit(1);
 }
 
-// Clean up
-fs.unlinkSync(".env");
-
-// Start the app
-require("../dist/index.js");
+// Start the app (using spawn so require.main === module works in index.js)
+const { spawn } = require("child_process");
+const app = spawn("node", ["dist/index.js"], { stdio: "inherit", env: process.env });
+app.on("exit", (code) => process.exit(code));
