@@ -1,5 +1,5 @@
 import { Stack, useRouter, useSegments } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { ActivityIndicator, View, StatusBar } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts } from "expo-font";
@@ -24,6 +24,7 @@ import { NetworkProvider } from "../src/providers/NetworkProvider";
 import { ToastProvider } from "../src/providers/ToastProvider";
 import OfflineBanner from "../src/components/ui/OfflineBanner";
 import AnimatedSplashGate from "../src/components/splash/AnimatedSplashGate";
+
 import { fonts } from "../src/theme";
 
 SplashScreen.preventAutoHideAsync();
@@ -117,11 +118,18 @@ export default function RootLayout() {
     Outfit_900Black,
   });
 
+  const [splashDone, setSplashDone] = useState(false);
+
+  // Once fonts are ready, hide native splash so our animated one takes over
   useEffect(() => {
     if (fontsLoaded || fontError) {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError]);
+
+  const handleSplashFinish = useCallback(() => {
+    setSplashDone(true);
+  }, []);
 
   if (!fontsLoaded && !fontError) {
     return null;
@@ -136,9 +144,10 @@ export default function RootLayout() {
               <PendingSearchProvider>
                 <ToastProvider>
                   <BottomSheetModalProvider>
-                    <AnimatedSplashGate>
-                      <RootLayoutNav />
-                    </AnimatedSplashGate>
+                    <RootLayoutNav />
+                    {!splashDone && (
+                      <AnimatedSplashGate onFinish={handleSplashFinish} />
+                    )}
                   </BottomSheetModalProvider>
                 </ToastProvider>
               </PendingSearchProvider>

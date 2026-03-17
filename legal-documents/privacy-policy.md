@@ -6,8 +6,6 @@
 
 **By using the App, you agree to the collection and use of information in accordance with this policy. If you do not agree, please do not use the App.**
 
-> *This document is a template for informational purposes. Consult with a qualified attorney for legal advice specific to your situation.*
-
 ---
 
 ## 1. Information We Collect
@@ -122,7 +120,7 @@ If you are in the EEA, you additionally have the right to:
 - **Lodge a complaint** with your local Data Protection Authority
 
 **Data Controller**: Stanislav Martin Babak
-**Contact**: martinyis11@gmail.com
+**Contact**: boromask@gmail.com
 
 We process your data under the following legal bases: performance of a contract (providing the service), consent (push notifications), and legitimate interests (security, fraud prevention, service improvement).
 
@@ -164,7 +162,7 @@ If you are in Canada, you have the right to:
 
 ### 6.6 Exercising Your Rights
 
-To exercise any of these rights, contact us at **martinyis11@gmail.com**. We will respond to your request within 30 days (or sooner if required by applicable law). You may also delete your account directly within the App under Settings.
+To exercise any of these rights, contact us at **boromask@gmail.com**. We will respond to your request within 30 days (or sooner if required by applicable law). You may also delete your account directly within the App under Settings.
 
 ---
 
@@ -178,7 +176,7 @@ For EEA residents, we rely on Standard Contractual Clauses (SCCs) approved by th
 
 ## 8. Children's Privacy
 
-The App is not intended for children under the age of 13. We do not knowingly collect personal information from children under 13. If we discover that a child under 13 has provided us with personal information, we will promptly delete it. If you believe a child under 13 has provided us with personal data, please contact us at **martinyis11@gmail.com**.
+The App is not intended for children under the age of 13. We do not knowingly collect personal information from children under 13. If we discover that a child under 13 has provided us with personal information, we will promptly delete it. If you believe a child under 13 has provided us with personal data, please contact us at **boromask@gmail.com**.
 
 ---
 
@@ -217,7 +215,7 @@ Your continued use of the App after any changes constitutes your acceptance of t
 If you have any questions or concerns about this Privacy Policy, please contact us:
 
 **Stanislav Martin Babak**
-Email: **martinyis11@gmail.com**
+Email: **boromask@gmail.com**
 
 For GDPR-related inquiries, you may also contact your local Data Protection Authority.
 

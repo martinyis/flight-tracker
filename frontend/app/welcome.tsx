@@ -248,7 +248,7 @@ export default function WelcomeScreen() {
             },
           ]}
         >
-          <Text style={styles.brandName}>Airfare</Text>
+          <Text style={styles.brandName}>AirFare</Text>
           <Text style={styles.tagline}>
             We check every date so you don't have to.
           </Text>

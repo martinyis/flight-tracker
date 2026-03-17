@@ -6,8 +6,6 @@ Welcome to **Airfare** ("the App", "we", "us", or "our"), operated by Stanislav 
 
 **By creating an account or using the App, you agree to be bound by these Terms. If you do not agree, do not use the App.**
 
-> *This document is a template for informational purposes. Consult with a qualified attorney for legal advice specific to your situation.*
-
 ---
 
 ## 1. Eligibility
@@ -187,13 +185,13 @@ Your continued use of the App after changes are posted constitutes your acceptan
 
 ### 11.1 Governing Law
 
-These Terms are governed by and construed in accordance with the laws of the **United States** and the **State of [YOUR STATE]**, without regard to its conflict of law principles.
+These Terms are governed by and construed in accordance with the laws of the **United States** and the **State of California**, without regard to its conflict of law principles.
 
 ### 11.2 Dispute Resolution
 
 Any dispute arising from these Terms or your use of the App shall be resolved as follows:
 
-1. **Informal Resolution**: You agree to first attempt to resolve any dispute informally by contacting us at martinyis11@gmail.com. We will attempt to resolve the dispute within 30 days.
+1. **Informal Resolution**: You agree to first attempt to resolve any dispute informally by contacting us at boromask@gmail.com. We will attempt to resolve the dispute within 30 days.
 2. **Binding Arbitration**: If informal resolution fails, the dispute shall be resolved by binding arbitration administered by the American Arbitration Association (AAA) under its Consumer Arbitration Rules.
 3. **Class Action Waiver**: You agree that any dispute resolution will be conducted on an individual basis and not as a class action, class arbitration, or other representative proceeding.
 
@@ -245,7 +243,7 @@ These Terms, together with our Privacy Policy and any other policies referenced 
 If you have any questions about these Terms, please contact us:
 
 **Stanislav Martin Babak**
-Email: **martinyis11@gmail.com**
+Email: **boromask@gmail.com**
 
 ---
 

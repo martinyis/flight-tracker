@@ -4,8 +4,6 @@
 
 **Airfare** ("the App") is committed to giving you full control over your personal data. This policy explains how you can request the deletion of your data and what happens when you do.
 
-> *This document is a template for informational purposes. Consult with a qualified attorney for legal advice specific to your situation.*
-
 ---
 
 ## 1. How to Delete Your Account and Data
@@ -21,7 +19,7 @@ Your account and all associated data will be permanently deleted.
 
 ### Option 2: Email Request
 
-Send an email to **martinyis11@gmail.com** with:
+Send an email to **boromask@gmail.com** with:
 
 - **Subject**: "Account Deletion Request"
 - **Body**: Your registered email address or Apple/Google account identifier
@@ -84,7 +82,7 @@ If you wish to delete specific data without deleting your entire account, you ca
 - **Disable price tracking**: Turn off tracking for specific searches
 - **Disable push notifications**: Through your device settings
 
-For other partial deletion requests, contact us at **martinyis11@gmail.com**.
+For other partial deletion requests, contact us at **boromask@gmail.com**.
 
 ---
 
@@ -93,7 +91,7 @@ For other partial deletion requests, contact us at **martinyis11@gmail.com**.
 For questions about data deletion:
 
 **Stanislav Martin Babak**
-Email: **martinyis11@gmail.com**
+Email: **boromask@gmail.com**
 
 ---
 

@@ -17,7 +17,11 @@ let cachedKey: string | null = null;
 
 function getPrivateKey(): string {
   if (!cachedKey) {
-    cachedKey = fs.readFileSync(APPLE_KEY_PATH, "utf8");
+    if (process.env.APPLE_PRIVATE_KEY_BASE64) {
+      cachedKey = Buffer.from(process.env.APPLE_PRIVATE_KEY_BASE64, "base64").toString("utf8");
+    } else {
+      cachedKey = fs.readFileSync(APPLE_KEY_PATH, "utf8");
+    }
   }
   return cachedKey;
 }

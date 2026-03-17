@@ -17,7 +17,7 @@
           {
             "CFBundleURLSchemes": [
               "skylens",
-              "com.googleusercontent.apps.949286619491-de0rldlh2qoljftscfdb08sk52h6gf6e"
+              "com.googleusercontent.apps.541006511724-9doi917bte93hgln5d86ff33a6bj5ah1"
             ]
           }
         ]
@@ -37,7 +37,7 @@
       }
     },
     "splash": {
-      "backgroundColor": "#3B82F6"
+      "backgroundColor": "#0A1628"
     },
     "orientation": "portrait",
     "android": {

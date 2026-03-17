@@ -8,11 +8,11 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		21681F4E942EC50C1BE0DD8D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 7B355C64EEF602C7E7E052DD /* PrivacyInfo.xcprivacy */; };
+		355FB01386BF69EB33228A7F /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DB9C107542082FDE5F649EE /* ExpoModulesProvider.swift */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		64EBA9792E40CCE35B58E903 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F5B82C6D1B934C8E034FAE4 /* ExpoModulesProvider.swift */; };
+		64956BF82FB0F47CFEE89D61 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A4800FB24E10976901E3263F /* PrivacyInfo.xcprivacy */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		C14F8402900366AC4E3DBEF7 /* libPods-Airfare.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 566362A4C5547602A3B15021 /* libPods-Airfare.a */; };
+		CFE21BD2AAC2A70BF35A5861 /* libPods-Airfare.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 377CF48BB20C308071C9E3D6 /* libPods-Airfare.a */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
@@ -20,16 +20,16 @@
 		13B07F961A680F5B00A75B9A /* Airfare.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Airfare.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Airfare/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Airfare/Info.plist; sourceTree = "<group>"; };
-		2A7D9FE10033B4D99BD88426 /* Pods-Airfare.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Airfare.debug.xcconfig"; path = "Target Support Files/Pods-Airfare/Pods-Airfare.debug.xcconfig"; sourceTree = "<group>"; };
-		3F5B82C6D1B934C8E034FAE4 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Airfare/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		566362A4C5547602A3B15021 /* libPods-Airfare.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Airfare.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		7B355C64EEF602C7E7E052DD /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Airfare/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		16B618FB9D527D1F381AFA32 /* Pods-Airfare.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Airfare.release.xcconfig"; path = "Target Support Files/Pods-Airfare/Pods-Airfare.release.xcconfig"; sourceTree = "<group>"; };
+		377CF48BB20C308071C9E3D6 /* libPods-Airfare.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Airfare.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		7DB9C107542082FDE5F649EE /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Airfare/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		A4800FB24E10976901E3263F /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Airfare/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Airfare/SplashScreen.storyboard; sourceTree = "<group>"; };
+		B2169CF611E2B580EEA403D6 /* Pods-Airfare.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Airfare.debug.xcconfig"; path = "Target Support Files/Pods-Airfare/Pods-Airfare.debug.xcconfig"; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Airfare/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* Airfare-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Airfare-Bridging-Header.h"; path = "Airfare/Airfare-Bridging-Header.h"; sourceTree = "<group>"; };
-		F8E2AEEAF6D5753C3CF7B21F /* Pods-Airfare.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Airfare.release.xcconfig"; path = "Target Support Files/Pods-Airfare/Pods-Airfare.release.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -37,23 +37,13 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C14F8402900366AC4E3DBEF7 /* libPods-Airfare.a in Frameworks */,
+				CFE21BD2AAC2A70BF35A5861 /* libPods-Airfare.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		076C0847BEB3CCC44854A8A5 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				2A7D9FE10033B4D99BD88426 /* Pods-Airfare.debug.xcconfig */,
-				F8E2AEEAF6D5753C3CF7B21F /* Pods-Airfare.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
-			sourceTree = "<group>";
-		};
 		13B07FAE1A68108700A75B9A /* Airfare */ = {
 			isa = PBXGroup;
 			children = (
@@ -63,7 +53,7 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				7B355C64EEF602C7E7E052DD /* PrivacyInfo.xcprivacy */,
+				A4800FB24E10976901E3263F /* PrivacyInfo.xcprivacy */,
 			);
 			name = Airfare;
 			sourceTree = "<group>";
@@ -72,17 +62,35 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				566362A4C5547602A3B15021 /* libPods-Airfare.a */,
+				377CF48BB20C308071C9E3D6 /* libPods-Airfare.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		618EB78FA790362FE2990B0A /* Airfare */ = {
+		340BDC01E10907CBC9F8B577 /* Airfare */ = {
 			isa = PBXGroup;
 			children = (
-				3F5B82C6D1B934C8E034FAE4 /* ExpoModulesProvider.swift */,
+				7DB9C107542082FDE5F649EE /* ExpoModulesProvider.swift */,
 			);
 			name = Airfare;
+			sourceTree = "<group>";
+		};
+		7B4E914303D0DE7B7F3F864E /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				B2169CF611E2B580EEA403D6 /* Pods-Airfare.debug.xcconfig */,
+				16B618FB9D527D1F381AFA32 /* Pods-Airfare.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		7F896B811620FDAB8EAF4573 /* ExpoModulesProviders */ = {
+			isa = PBXGroup;
+			children = (
+				340BDC01E10907CBC9F8B577 /* Airfare */,
+			);
+			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -99,8 +107,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				076C0847BEB3CCC44854A8A5 /* Pods */,
-				BCBF194A69DE30F729C87A8D /* ExpoModulesProviders */,
+				7B4E914303D0DE7B7F3F864E /* Pods */,
+				7F896B811620FDAB8EAF4573 /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -124,14 +132,6 @@
 			path = Airfare/Supporting;
 			sourceTree = "<group>";
 		};
-		BCBF194A69DE30F729C87A8D /* ExpoModulesProviders */ = {
-			isa = PBXGroup;
-			children = (
-				618EB78FA790362FE2990B0A /* Airfare */,
-			);
-			name = ExpoModulesProviders;
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -140,13 +140,13 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "Airfare" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				CF1D7C565AB27907E24C652A /* [Expo] Configure project */,
+				AD5517FEF7ABA1CF7B866D0F /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				E1C4E1AD7563978C2882B110 /* [CP] Embed Pods Frameworks */,
+				97A51052A89F4B0466280B7A /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -196,7 +196,7 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				21681F4E942EC50C1BE0DD8D /* PrivacyInfo.xcprivacy in Resources */,
+				64956BF82FB0F47CFEE89D61 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -284,7 +284,29 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Airfare/Pods-Airfare-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		CF1D7C565AB27907E24C652A /* [Expo] Configure project */ = {
+		97A51052A89F4B0466280B7A /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-Airfare/Pods-Airfare-frameworks.sh",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Airfare/Pods-Airfare-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		AD5517FEF7ABA1CF7B866D0F /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -308,28 +330,6 @@
 			shellPath = /bin/sh;
 			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-Airfare/expo-configure-project.sh\"\n";
 		};
-		E1C4E1AD7563978C2882B110 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-Airfare/Pods-Airfare-frameworks.sh",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Airfare/Pods-Airfare-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -338,7 +338,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				64EBA9792E40CCE35B58E903 /* ExpoModulesProvider.swift in Sources */,
+				355FB01386BF69EB33228A7F /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -347,7 +347,7 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 2A7D9FE10033B4D99BD88426 /* Pods-Airfare.debug.xcconfig */;
+			baseConfigurationReference = B2169CF611E2B580EEA403D6 /* Pods-Airfare.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -384,7 +384,7 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = F8E2AEEAF6D5753C3CF7B21F /* Pods-Airfare.release.xcconfig */;
+			baseConfigurationReference = 16B618FB9D527D1F381AFA32 /* Pods-Airfare.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;

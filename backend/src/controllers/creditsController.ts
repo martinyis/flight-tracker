@@ -77,12 +77,14 @@ export const getPacks = asyncHandler(async (_req: AuthRequest, res: Response) =>
 export const verifyPurchase = asyncHandler(async (req: AuthRequest, res: Response) => {
   const userId = Number(req.userId);
   const { transactionId, productId: clientProductId } = req.body;
-  const isXcodeTest = process.env.APPLE_ENVIRONMENT === "Xcode";
+  const isXcodeTest =
+    process.env.APPLE_ENVIRONMENT === "Xcode" && process.env.NODE_ENV !== "production";
 
   let resolvedProductId: string;
 
   if (isXcodeTest) {
     // Local StoreKit Configuration testing — trust client-provided productId
+    // Blocked in production even if APPLE_ENVIRONMENT is accidentally set to "Xcode"
     if (!clientProductId) {
       throw new BadRequestError("productId is required in Xcode testing mode");
     }

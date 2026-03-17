@@ -16,6 +16,9 @@ import { globalLimiter } from "./middleware/rateLimiter";
 export function createApp() {
   const app = express();
 
+  // Required for correct client IP behind reverse proxy (AWS ALB, nginx, etc.)
+  app.set("trust proxy", 1);
+
   app.use(helmet());
   app.use(
     cors({
@@ -71,8 +74,24 @@ export function createApp() {
 if (require.main === module) {
   const app = createApp();
   const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     logger.info({ port: PORT }, "Server started");
     startPriceCheckCron();
   });
+
+  // Graceful shutdown for container orchestration (ECS, Kubernetes)
+  const shutdown = (signal: string) => {
+    logger.info({ signal }, "Received shutdown signal, closing server…");
+    server.close(async () => {
+      const { default: prisma } = await import("./config/db");
+      await prisma.$disconnect();
+      logger.info("Graceful shutdown complete");
+      process.exit(0);
+    });
+    // Force exit after 10s if connections linger
+    setTimeout(() => process.exit(1), 10_000).unref();
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }

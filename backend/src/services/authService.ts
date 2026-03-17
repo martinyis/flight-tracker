@@ -153,7 +153,7 @@ interface AuthResult {
 
 export async function appleAuth(identityToken: string): Promise<AuthResult> {
   const payload = await appleSignin.verifyIdToken(identityToken, {
-    audience: "com.martinyis.skylens",
+    audience: process.env.APPLE_BUNDLE_ID!,
     ignoreExpiration: false,
   });
 

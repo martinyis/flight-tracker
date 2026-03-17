@@ -4,8 +4,6 @@
 
 This Acceptable Use Policy ("AUP") governs your use of the **Airfare** mobile application ("the App"). By using the App, you agree to comply with this policy.
 
-> *This document is a template for informational purposes. Consult with a qualified attorney for legal advice specific to your situation.*
-
 ---
 
 ## 1. Permitted Use
@@ -61,7 +59,7 @@ You agree **not** to engage in any of the following:
 
 ## 4. Reporting Violations
 
-If you become aware of any violation of this AUP, please report it to **martinyis11@gmail.com**.
+If you become aware of any violation of this AUP, please report it to **boromask@gmail.com**.
 
 ---
 
@@ -88,7 +86,7 @@ We may update this AUP from time to time. Continued use of the App constitutes a
 For questions about this Acceptable Use Policy:
 
 **Stanislav Martin Babak**
-Email: **martinyis11@gmail.com**
+Email: **boromask@gmail.com**
 
 ---
 
