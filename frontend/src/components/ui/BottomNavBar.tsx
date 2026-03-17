@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, usePathname } from "expo-router";
 import { Home, Coins, User, Plus } from "lucide-react-native";
 import { useHaptics } from "../../providers/HapticsProvider";
+import { usePendingSearch } from "../../providers/PendingSearchProvider";
 
 const PRIMARY = "#2F9CF4";
 const PRIMARY_PRESSED = "#1A7ED4";
@@ -14,6 +15,7 @@ export default function BottomNavBar() {
   const router = useRouter();
   const pathname = usePathname();
   const haptics = useHaptics();
+  const { isSearching } = usePendingSearch();
 
   const isHome = pathname === "/";
   const isCredits = pathname === "/credits";
@@ -87,9 +89,14 @@ export default function BottomNavBar() {
           <Pressable
             style={({ pressed }) => [
               styles.addBtn,
-              pressed && styles.addBtnPressed,
+              pressed && !isSearching && styles.addBtnPressed,
+              isSearching && { opacity: 0.4 },
             ]}
-            onPress={() => { haptics.medium(); router.push("/add-search"); }}
+            onPress={() => {
+              if (isSearching) return;
+              haptics.medium();
+              router.push("/add-search");
+            }}
           >
             <Plus size={22} color="#FFFFFF" strokeWidth={2.5} />
           </Pressable>

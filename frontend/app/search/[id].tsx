@@ -30,6 +30,7 @@ import { timeAgo } from "../../src/lib/utils/time";
 import { fonts } from "../../src/theme";
 import { useCredits } from "../../src/providers/CreditsProvider";
 import { useHaptics } from "../../src/providers/HapticsProvider";
+import { useToast } from "../../src/providers/ToastProvider";
 import { RouteArrowHero } from "../../src/components/ui/RouteArrow";
 
 // Enable LayoutAnimation on Android
@@ -447,6 +448,7 @@ export default function SearchDetailScreen() {
   const insets = useSafeAreaInsets();
   const { balance, refresh: refreshCredits } = useCredits();
   const haptics = useHaptics();
+  const toast = useToast();
   const [search, setSearch] = useState<SavedSearch | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -567,7 +569,7 @@ export default function SearchDetailScreen() {
             const hydrateRes = await api.post(`/search/${id}/hydrate`);
             setSearch(hydrateRes.data);
           } catch {
-            // Silently fail -- user still sees partial data with outbound + price
+            toast.show("Couldn't refresh flight data");
           } finally {
             setRefreshing(false);
           }
@@ -579,7 +581,7 @@ export default function SearchDetailScreen() {
             setSearch(refreshRes.data);
             startCooldown();
           } catch {
-            // Silently fail -- user still sees cached data
+            toast.show("Couldn't refresh flight data");
           } finally {
             setRefreshing(false);
             setRefreshPhase(0);
@@ -592,7 +594,7 @@ export default function SearchDetailScreen() {
           const hydrateRes = await api.post(`/search/${id}/hydrate`);
           setSearch(hydrateRes.data);
         } catch {
-          // Silently fail
+          toast.show("Couldn't refresh flight data");
         } finally {
           setRefreshing(false);
         }

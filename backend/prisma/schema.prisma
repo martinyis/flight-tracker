@@ -68,13 +68,15 @@ model SavedSearch {
 }
 
 model CreditTransaction {
-  id        Int      @id @default(autoincrement())
-  userId    Int      @map("user_id")
-  searchId  Int?     @map("search_id")
-  amount    Int
-  type      String
-  note      String?
-  createdAt DateTime @default(now()) @map("created_at")
+  id                 Int      @id @default(autoincrement())
+  userId             Int      @map("user_id")
+  searchId           Int?     @map("search_id")
+  amount             Int
+  type               String
+  note               String?
+  appleTransactionId String?  @unique @map("apple_transaction_id")
+  appleProductId     String?  @map("apple_product_id")
+  createdAt          DateTime @default(now()) @map("created_at")
 
   user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   search SavedSearch? @relation(fields: [searchId], references: [id], onDelete: SetNull)

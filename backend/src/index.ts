@@ -13,57 +13,66 @@ import creditsRoutes from "./routes/credits";
 import { startPriceCheckCron } from "./workers/priceCheckWorker";
 import { globalLimiter } from "./middleware/rateLimiter";
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+export function createApp() {
+  const app = express();
 
-app.use(helmet());
-app.use(
-  cors({
-    origin: process.env.CORS_ORIGINS
-      ? process.env.CORS_ORIGINS.split(",")
-      : "http://localhost:8081",
-  })
-);
-app.use(express.json());
+  app.use(helmet());
+  app.use(
+    cors({
+      origin: process.env.CORS_ORIGINS
+        ? process.env.CORS_ORIGINS.split(",")
+        : "http://localhost:8081",
+    })
+  );
+  app.use(express.json());
 
-app.use(
-  pinoHttp({
-    logger,
-    genReqId: (req) =>
-      (req.headers["x-request-id"] as string) ?? crypto.randomUUID(),
-    autoLogging: {
-      ignore: (req) => req.url === "/health",
-    },
-    customLogLevel: (_req, res) => {
-      if (res.statusCode >= 500) return "error";
-      if (res.statusCode >= 400) return "warn";
-      return "info";
-    },
-    serializers: {
-      req: (req) => ({
-        method: req.method,
-        url: req.url,
-      }),
-      res: (res) => ({
-        statusCode: res.statusCode,
-      }),
-    },
-  })
-);
+  if (process.env.NODE_ENV !== "test") {
+    app.use(
+      pinoHttp({
+        logger,
+        genReqId: (req) =>
+          (req.headers["x-request-id"] as string) ?? crypto.randomUUID(),
+        autoLogging: {
+          ignore: (req) => req.url === "/health",
+        },
+        customLogLevel: (_req, res) => {
+          if (res.statusCode >= 500) return "error";
+          if (res.statusCode >= 400) return "warn";
+          return "info";
+        },
+        serializers: {
+          req: (req) => ({
+            method: req.method,
+            url: req.url,
+          }),
+          res: (res) => ({
+            statusCode: res.statusCode,
+          }),
+        },
+      })
+    );
 
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok" });
-});
+    app.use(globalLimiter);
+  }
 
-app.use(globalLimiter);
+  app.get("/health", (_req, res) => {
+    res.json({ status: "ok" });
+  });
 
-app.use("/api/auth", authRoutes);
-app.use("/api/search", authenticate, searchRoutes);
-app.use("/api/credits", authenticate, creditsRoutes);
+  app.use("/api/auth", authRoutes);
+  app.use("/api/search", authenticate, searchRoutes);
+  app.use("/api/credits", authenticate, creditsRoutes);
 
-app.use(errorHandler);
+  app.use(errorHandler);
 
-app.listen(PORT, () => {
-  logger.info({ port: PORT }, "Server started");
-  startPriceCheckCron();
-});
+  return app;
+}
+
+if (require.main === module) {
+  const app = createApp();
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    logger.info({ port: PORT }, "Server started");
+    startPriceCheckCron();
+  });
+}

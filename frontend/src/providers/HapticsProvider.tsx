@@ -76,8 +76,20 @@ export function HapticsProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+const noop = () => {};
+const fallback: HapticsState = {
+  enabled: false,
+  setEnabled: noop,
+  light: noop,
+  medium: noop,
+  heavy: noop,
+  selection: noop,
+  success: noop,
+  warning: noop,
+  error: noop,
+};
+
 export function useHaptics(): HapticsState {
   const ctx = useContext(HapticsContext);
-  if (!ctx) throw new Error("useHaptics must be used within HapticsProvider");
-  return ctx;
+  return ctx ?? fallback;
 }

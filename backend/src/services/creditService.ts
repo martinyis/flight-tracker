@@ -136,10 +136,60 @@ export async function refundCredits(
 
 /** Credit pack definitions */
 export const CREDIT_PACKS = {
-  starter: { credits: 50, price: 4.99, label: "Starter" },
-  standard: { credits: 150, price: 12.99, label: "Standard" },
-  pro: { credits: 400, price: 29.99, label: "Pro" },
-  power: { credits: 1000, price: 59.99, label: "Power" },
+  starter: { credits: 50, price: 4.99, label: "Starter", appleProductId: "credits_starter_50" },
+  standard: { credits: 150, price: 12.99, label: "Standard", appleProductId: "credits_standard_150" },
+  pro: { credits: 400, price: 29.99, label: "Pro", appleProductId: "credits_pro_400" },
+  power: { credits: 1000, price: 59.99, label: "Power", appleProductId: "credits_power_1000" },
 } as const;
 
 export type PackId = keyof typeof CREDIT_PACKS;
+
+/** Grant credits from a verified Apple IAP transaction, with dedup protection. */
+export async function addCreditsFromApple(
+  userId: number,
+  amount: number,
+  appleTransactionId: string,
+  appleProductId: string,
+  note?: string
+): Promise<{ balance: number; alreadyProcessed: boolean }> {
+  // Fast-path dedup check (avoids serializable lock overhead for replays)
+  const existing = await prisma.creditTransaction.findUnique({
+    where: { appleTransactionId },
+  });
+  if (existing) {
+    const balance = await getBalance(userId);
+    return { balance, alreadyProcessed: true };
+  }
+
+  try {
+    const balance = await prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: { creditBalance: { increment: amount } },
+        select: { creditBalance: true },
+      });
+
+      await tx.creditTransaction.create({
+        data: {
+          userId,
+          amount,
+          type: "purchase",
+          note: note ?? null,
+          appleTransactionId,
+          appleProductId,
+        },
+      });
+
+      return updated.creditBalance;
+    }, { isolationLevel: "Serializable" });
+
+    return { balance, alreadyProcessed: false };
+  } catch (err: any) {
+    // Handle unique constraint violation (race condition dedup)
+    if (err.code === "P2002" && err.meta?.target?.includes("apple_transaction_id")) {
+      const balance = await getBalance(userId);
+      return { balance, alreadyProcessed: true };
+    }
+    throw err;
+  }
+}

@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-               BuildableName = "SkyLens.app"
-               BlueprintName = "SkyLens"
-               ReferencedContainer = "container:SkyLens.xcodeproj">
+               BuildableName = "Airfare.app"
+               BlueprintName = "Airfare"
+               ReferencedContainer = "container:Airfare.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "00E356ED1AD99517003FC87E"
-               BuildableName = "SkyLensTests.xctest"
-               BlueprintName = "SkyLensTests"
-               ReferencedContainer = "container:SkyLens.xcodeproj">
+               BuildableName = "AirfareTests.xctest"
+               BlueprintName = "AirfareTests"
+               ReferencedContainer = "container:Airfare.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -55,9 +55,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "SkyLens.app"
-            BlueprintName = "SkyLens"
-            ReferencedContainer = "container:SkyLens.xcodeproj">
+            BuildableName = "Airfare.app"
+            BlueprintName = "Airfare"
+            ReferencedContainer = "container:Airfare.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -72,9 +72,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "SkyLens.app"
-            BlueprintName = "SkyLens"
-            ReferencedContainer = "container:SkyLens.xcodeproj">
+            BuildableName = "Airfare.app"
+            BlueprintName = "Airfare"
+            ReferencedContainer = "container:Airfare.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

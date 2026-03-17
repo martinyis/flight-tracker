@@ -18,11 +18,13 @@ import api from "../src/lib/api/client";
 import MeshBackground from "../src/components/ui/MeshBackground";
 import BottomNavBar from "../src/components/ui/BottomNavBar";
 import { useAuth } from "../src/providers/AuthProvider";
+import { usePendingSearch } from "../src/providers/PendingSearchProvider";
 import { useHaptics } from "../src/providers/HapticsProvider";
 import { fonts } from "../src/theme";
 import { getCityByIata } from "../src/lib/utils/airportSearch";
 import { timeAgo } from "../src/lib/utils/time";
 import RouteArrow from "../src/components/ui/RouteArrow";
+import PendingSearchBanner from "../src/components/PendingSearchBanner";
 
 // ---------------------------------------------------------------------------
 // Colors
@@ -871,13 +873,18 @@ export default function HomeScreen() {
   const [searches, setSearches] = useState<SavedSearchSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const { pending } = usePendingSearch();
 
   const fetchSearches = async () => {
+    setFetchError(null);
     try {
       const res = await api.get("/search");
       setSearches(res.data);
-    } catch {
-      // silently fail
+    } catch (err: any) {
+      setFetchError(
+        err.response?.data?.error ?? err.message ?? "Couldn't load your searches"
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -885,6 +892,13 @@ export default function HomeScreen() {
   };
 
   useFocusEffect(useCallback(() => { fetchSearches(); }, []));
+
+  // Auto-refresh search list when background search completes
+  useEffect(() => {
+    if (pending?.status === "completed") {
+      fetchSearches();
+    }
+  }, [pending?.status]);
 
   const onRefresh = () => {
     haptics.light();
@@ -944,15 +958,33 @@ export default function HomeScreen() {
                 )}
               </Animated.View>
 
+              {/* Pending search banner */}
+              <PendingSearchBanner />
+
               {/* Divider separating header from content */}
               {hasSearches && <View style={s.headerDivider} />}
 
               {/* Section label for searches */}
               {hasSearches && <Text style={s.sectionLabel}>YOUR ROUTES</Text>}
 
-              {/* Loading / Empty states */}
+              {/* Loading / Error / Empty states */}
               {loading && <LoadingState />}
-              {!loading && searches.length === 0 && (
+              {!loading && fetchError && searches.length === 0 && (
+                <View style={s.errorState}>
+                  <Text style={s.errorText}>{fetchError}</Text>
+                  <Pressable
+                    style={s.retryBtn}
+                    onPress={() => {
+                      haptics.light();
+                      setLoading(true);
+                      fetchSearches();
+                    }}
+                  >
+                    <Text style={s.retryText}>Tap to retry</Text>
+                  </Pressable>
+                </View>
+              )}
+              {!loading && !fetchError && searches.length === 0 && (
                 <OnboardingState onAdd={() => { haptics.medium(); router.push("/add-search"); }} />
               )}
             </>
@@ -1005,5 +1037,29 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 8,
+  },
+  errorState: {
+    alignItems: "center",
+    paddingHorizontal: 32,
+    paddingTop: 80,
+    gap: 12,
+  },
+  errorText: {
+    fontFamily: fonts.medium,
+    fontSize: 15,
+    color: C.n500,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  retryBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: C.primary,
+  },
+  retryText: {
+    fontFamily: fonts.semiBold,
+    fontSize: 14,
+    color: "#fff",
   },
 });

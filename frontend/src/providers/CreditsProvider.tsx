@@ -22,6 +22,7 @@ interface CreditsState {
   balance: number | null;
   transactions: CreditTransaction[];
   isLoading: boolean;
+  error: boolean;
   refresh: () => Promise<void>;
 }
 
@@ -32,16 +33,18 @@ export function CreditsProvider({ children }: { children: ReactNode }) {
   const [balance, setBalance] = useState<number | null>(null);
   const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!token) return;
     setIsLoading(true);
+    setError(false);
     try {
       const res = await api.get("/credits/balance");
       setBalance(res.data.balance);
       setTransactions(res.data.transactions);
     } catch {
-      // Silently fail — balance stays null
+      setError(true);
     } finally {
       setIsLoading(false);
     }
@@ -57,7 +60,7 @@ export function CreditsProvider({ children }: { children: ReactNode }) {
   }, [token, refresh]);
 
   return (
-    <CreditsContext.Provider value={{ balance, transactions, isLoading, refresh }}>
+    <CreditsContext.Provider value={{ balance, transactions, isLoading, error, refresh }}>
       {children}
     </CreditsContext.Provider>
   );

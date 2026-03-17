@@ -20,7 +20,6 @@ import DateTimePicker, {
 } from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import api from "../src/lib/api/client";
 import BackButton from "../src/components/ui/BackButton";
 import AirportSearchModal from "../src/components/AirportSearchModal";
 import type {
@@ -31,6 +30,7 @@ import type {
 import AppButton from "../src/components/ui/AppButton";
 import SearchingOverlay from "../src/components/wizard/SearchingOverlay";
 import { useCredits } from "../src/providers/CreditsProvider";
+import { usePendingSearch } from "../src/providers/PendingSearchProvider";
 import { useHaptics } from "../src/providers/HapticsProvider";
 import { Check, PlaneTakeoff, PlaneLanding, Calendar, CornerDownLeft, ChevronRight, ChevronUp, ChevronDown, ArrowRight } from "lucide-react-native";
 
@@ -275,7 +275,8 @@ function ToggleSwitch({ value, onToggle }: ToggleSwitchProps) {
 export default function AddSearchScreen() {
   const router = useRouter();
   const haptics = useHaptics();
-  const { balance, refresh: refreshCredits } = useCredits();
+  const { balance } = useCredits();
+  const { startSearch, pending, isSearching, dismiss } = usePendingSearch();
   const [step, setStep] = useState<WizardStep>("form");
   const [formData, setFormData] = useState<WizardFormData>({
     tripType: "roundtrip",
@@ -594,53 +595,66 @@ export default function AddSearchScreen() {
   }, [formData.apiFilters]);
 
   // ---------------------------------------------------------------------------
-  // Search handler (unchanged)
+  // Search handler — delegates to PendingSearchProvider
   // ---------------------------------------------------------------------------
 
   const handleSearch = async () => {
     if (!formData.origin || !formData.destination) return;
     setStep("searching");
     setError("");
-    try {
-      const body: any = {
-        tripType: formData.tripType,
-        origin: formData.origin.iata,
-        destination: formData.destination.iata,
-        dateFrom: toYMD(formData.dateFrom),
-        dateTo: toYMD(formData.dateTo),
-      };
-      if (formData.tripType === "roundtrip") {
-        body.minNights = Number(formData.minNights);
-        body.maxNights = Number(formData.maxNights);
-      }
-      const apiFilters = buildApiFilters();
-      if (apiFilters) body.apiFilters = apiFilters;
 
-      const res = await api.post("/search", body, { timeout: 120_000 });
-      await refreshCredits();
-      haptics.success();
-      const saved = res.data.search;
-      router.replace(`/search/${saved.id}`);
-    } catch (e: any) {
+    const body: any = {
+      tripType: formData.tripType,
+      origin: formData.origin.iata,
+      destination: formData.destination.iata,
+      dateFrom: toYMD(formData.dateFrom),
+      dateTo: toYMD(formData.dateTo),
+    };
+    if (formData.tripType === "roundtrip") {
+      body.minNights = Number(formData.minNights);
+      body.maxNights = Number(formData.maxNights);
+    }
+    const apiFilters = buildApiFilters();
+    if (apiFilters) body.apiFilters = apiFilters;
+
+    const result = await startSearch(
+      body,
+      formData.origin.iata,
+      formData.destination.iata,
+    );
+
+    // Fast error (402, 409, 429) — show inline on form
+    if (result.fastError) {
       haptics.error();
-      const status = e.response?.status;
-      const code = e.response?.data?.code;
-      if (status === 402 && code === "INSUFFICIENT_CREDITS") {
-        setError(
-          `Not enough credits (have ${e.response.data.balance}, need ${e.response.data.needed}). Buy more credits to search.`
-        );
-      } else if (status === 409) {
-        setError(
-          "Duplicate search — you searched this exact route within 24 hours."
-        );
-      } else if (status === 429) {
-        setError(e.response?.data?.error ?? "Rate limited. Try again later.");
-      } else {
-        setError(e.response?.data?.error ?? e.message);
-      }
+      setError(result.fastError);
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setStep("form");
+      return;
     }
+
+    // Slow error — user may still be on overlay or may have navigated away.
+    // If still here, revert to form so they can retry.
+    if (!result.ok) {
+      setStep("form");
+    }
+    // If ok — the useEffect below handles navigation
+  };
+
+  // Auto-navigate to results if search completes while still on overlay
+  useEffect(() => {
+    if (
+      step === "searching" &&
+      pending?.status === "completed" &&
+      pending.searchId
+    ) {
+      dismiss();
+      router.replace(`/search/${pending.searchId}`);
+    }
+  }, [pending, step]);
+
+  const handleContinueBrowsing = () => {
+    haptics.light();
+    router.replace("/");
   };
 
   // ---------------------------------------------------------------------------
@@ -1307,9 +1321,9 @@ export default function AddSearchScreen() {
           {/* Search button */}
           <View style={styles.searchBtnWrap}>
             <AppButton
-              label="Search Flights"
+              label={isSearching ? "Search in progress..." : "Search Flights"}
               onPress={handleSearch}
-              disabled={!isValid || comboInfo.overLimit}
+              disabled={!isValid || comboInfo.overLimit || isSearching}
             />
           </View>
 
@@ -1323,6 +1337,8 @@ export default function AddSearchScreen() {
           <SearchingOverlay
             origin={formData.origin.iata}
             destination={formData.destination.iata}
+            comboCount={comboInfo.count}
+            onContinueBrowsing={handleContinueBrowsing}
           />
         )}
 

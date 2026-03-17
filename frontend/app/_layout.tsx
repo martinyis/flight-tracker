@@ -18,7 +18,12 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { AuthProvider, useAuth } from "../src/providers/AuthProvider";
 import { CreditsProvider } from "../src/providers/CreditsProvider";
+import { PendingSearchProvider } from "../src/providers/PendingSearchProvider";
 import { HapticsProvider } from "../src/providers/HapticsProvider";
+import { NetworkProvider } from "../src/providers/NetworkProvider";
+import { ToastProvider } from "../src/providers/ToastProvider";
+import OfflineBanner from "../src/components/ui/OfflineBanner";
+import AnimatedSplashGate from "../src/components/splash/AnimatedSplashGate";
 import { fonts } from "../src/theme";
 
 SplashScreen.preventAutoHideAsync();
@@ -73,6 +78,7 @@ function RootLayoutNav() {
         backgroundColor="transparent"
         translucent
       />
+      <OfflineBanner />
       <Stack
         screenOptions={{
           headerShown: false,
@@ -123,15 +129,23 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <HapticsProvider>
-        <AuthProvider>
-          <CreditsProvider>
-            <BottomSheetModalProvider>
-              <RootLayoutNav />
-            </BottomSheetModalProvider>
-          </CreditsProvider>
-        </AuthProvider>
-      </HapticsProvider>
+      <NetworkProvider>
+        <HapticsProvider>
+          <AuthProvider>
+            <CreditsProvider>
+              <PendingSearchProvider>
+                <ToastProvider>
+                  <BottomSheetModalProvider>
+                    <AnimatedSplashGate>
+                      <RootLayoutNav />
+                    </AnimatedSplashGate>
+                  </BottomSheetModalProvider>
+                </ToastProvider>
+              </PendingSearchProvider>
+            </CreditsProvider>
+          </AuthProvider>
+        </HapticsProvider>
+      </NetworkProvider>
     </GestureHandlerRootView>
   );
 }

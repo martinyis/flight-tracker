@@ -9,6 +9,7 @@
       "ios",
       "android"
     ],
+    "newArchEnabled": true,
     "ios": {
       "bundleIdentifier": "com.martinyis.skylens",
       "infoPlist": {
@@ -26,12 +27,17 @@
     "plugins": [
       "expo-secure-store",
       "expo-font",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      "expo-notifications",
+      "react-native-iap"
     ],
     "extra": {
       "eas": {
         "projectId": "fd5ff44c-2a9e-4a5f-a813-c1df1e8bbab4"
       }
+    },
+    "splash": {
+      "backgroundColor": "#3B82F6"
     },
     "orientation": "portrait",
     "android": {

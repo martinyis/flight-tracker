@@ -5,7 +5,7 @@ const ACCESS_TOKEN_KEY = "auth_token";
 const REFRESH_TOKEN_KEY = "refresh_token";
 
 const api = axios.create({
-  baseURL: "http://10.21.184.187:3000/api",
+  baseURL: "http://10.183.25.195:3000/api",
   timeout: 10000,
   headers: { "Content-Type": "application/json" },
 });
@@ -105,5 +105,20 @@ api.interceptors.response.use(
     }
   }
 );
+
+// ── Response interceptor: user-friendly network error messages ────────────
+
+api.interceptors.response.use(undefined, (error: AxiosError) => {
+  if (!error.response) {
+    // No response at all — network-level failure
+    if (error.code === "ECONNABORTED") {
+      error.message = "Request timed out. Please try again.";
+    } else {
+      error.message =
+        "You appear to be offline. Check your connection and try again.";
+    }
+  }
+  return Promise.reject(error);
+});
 
 export default api;

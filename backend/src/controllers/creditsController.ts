@@ -2,8 +2,10 @@ import { Response } from "express";
 import { AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
 import * as creditService from "../services/creditService";
+import * as appleIapService from "../services/appleIapService";
 import { countCombos } from "../services/flightService";
 import { COMBO_HARD_CAP } from "../config/constants";
+import { BadRequestError } from "../errors/AppError";
 
 export const getBalance = asyncHandler(async (req: AuthRequest, res: Response) => {
   const userId = Number(req.userId);
@@ -70,4 +72,55 @@ export const purchase = asyncHandler(async (req: AuthRequest, res: Response) => 
 
 export const getPacks = asyncHandler(async (_req: AuthRequest, res: Response) => {
   res.json({ packs: creditService.CREDIT_PACKS });
+});
+
+export const verifyPurchase = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const userId = Number(req.userId);
+  const { transactionId, productId: clientProductId } = req.body;
+  const isXcodeTest = process.env.APPLE_ENVIRONMENT === "Xcode";
+
+  let resolvedProductId: string;
+
+  if (isXcodeTest) {
+    // Local StoreKit Configuration testing — trust client-provided productId
+    if (!clientProductId) {
+      throw new BadRequestError("productId is required in Xcode testing mode");
+    }
+    resolvedProductId = clientProductId;
+  } else {
+    // Sandbox / Production — verify with Apple's servers
+    const appleTx = await appleIapService.getTransaction(transactionId);
+    appleIapService.validateTransaction(appleTx);
+    resolvedProductId = appleTx.productId;
+  }
+
+  // Resolve credits for this product
+  const credits = appleIapService.creditsForProduct(resolvedProductId);
+  if (!credits) {
+    throw new BadRequestError(`Unknown product: ${resolvedProductId}`);
+  }
+
+  // Find pack label for the note
+  const packEntry = Object.values(creditService.CREDIT_PACKS).find(
+    (p) => p.appleProductId === resolvedProductId
+  );
+  const note = `${packEntry?.label ?? resolvedProductId} pack`;
+
+  // Grant credits with dedup protection
+  const { balance, alreadyProcessed } = await creditService.addCreditsFromApple(
+    userId,
+    credits,
+    transactionId,
+    resolvedProductId,
+    note
+  );
+
+  const transactions = await creditService.getTransactions(userId, 1);
+
+  res.json({
+    balance,
+    creditsAdded: alreadyProcessed ? 0 : credits,
+    alreadyProcessed,
+    transaction: transactions[0],
+  });
 });

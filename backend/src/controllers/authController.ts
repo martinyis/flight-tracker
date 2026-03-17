@@ -90,7 +90,7 @@ export const savePushToken = asyncHandler(async (req: AuthRequest, res: Response
   const { pushToken } = req.body;
   await prisma.user.update({
     where: { id: userId },
-    data: { pushToken },
+    data: { pushToken: pushToken || null },
   });
   res.json({ success: true });
 });

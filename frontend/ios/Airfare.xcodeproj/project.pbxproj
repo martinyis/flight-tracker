@@ -8,28 +8,28 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		21681F4E942EC50C1BE0DD8D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 7B355C64EEF602C7E7E052DD /* PrivacyInfo.xcprivacy */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		7D2DAACA41B6F23412D6E1A1 /* libPods-SkyLens.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5651169E1DD52D68018BB5FB /* libPods-SkyLens.a */; };
+		64EBA9792E40CCE35B58E903 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F5B82C6D1B934C8E034FAE4 /* ExpoModulesProvider.swift */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		D32D117718FF6656881C0C80 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = EA055885FD4EAC5AFE6B14BD /* PrivacyInfo.xcprivacy */; };
-		EBF1FBC5F8906760E0359554 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A3C7B126F4AD3725F0C8F9B /* ExpoModulesProvider.swift */; };
+		C14F8402900366AC4E3DBEF7 /* libPods-Airfare.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 566362A4C5547602A3B15021 /* libPods-Airfare.a */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		0A3C7B126F4AD3725F0C8F9B /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-SkyLens/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		13B07F961A680F5B00A75B9A /* SkyLens.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SkyLens.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = SkyLens/Images.xcassets; sourceTree = "<group>"; };
-		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = SkyLens/Info.plist; sourceTree = "<group>"; };
-		5651169E1DD52D68018BB5FB /* libPods-SkyLens.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-SkyLens.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		80D52EF45BC8080BEDB9AB0D /* Pods-SkyLens.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SkyLens.release.xcconfig"; path = "Target Support Files/Pods-SkyLens/Pods-SkyLens.release.xcconfig"; sourceTree = "<group>"; };
-		82F94CBA174D34DC8701515C /* Pods-SkyLens.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-SkyLens.debug.xcconfig"; path = "Target Support Files/Pods-SkyLens/Pods-SkyLens.debug.xcconfig"; sourceTree = "<group>"; };
-		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = SkyLens/SplashScreen.storyboard; sourceTree = "<group>"; };
+		13B07F961A680F5B00A75B9A /* Airfare.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Airfare.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Airfare/Images.xcassets; sourceTree = "<group>"; };
+		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Airfare/Info.plist; sourceTree = "<group>"; };
+		2A7D9FE10033B4D99BD88426 /* Pods-Airfare.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Airfare.debug.xcconfig"; path = "Target Support Files/Pods-Airfare/Pods-Airfare.debug.xcconfig"; sourceTree = "<group>"; };
+		3F5B82C6D1B934C8E034FAE4 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Airfare/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		566362A4C5547602A3B15021 /* libPods-Airfare.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Airfare.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		7B355C64EEF602C7E7E052DD /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Airfare/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Airfare/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		EA055885FD4EAC5AFE6B14BD /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = SkyLens/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
-		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = SkyLens/AppDelegate.swift; sourceTree = "<group>"; };
-		F11748442D0722820044C1D9 /* SkyLens-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "SkyLens-Bridging-Header.h"; path = "SkyLens/SkyLens-Bridging-Header.h"; sourceTree = "<group>"; };
+		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Airfare/AppDelegate.swift; sourceTree = "<group>"; };
+		F11748442D0722820044C1D9 /* Airfare-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Airfare-Bridging-Header.h"; path = "Airfare/Airfare-Bridging-Header.h"; sourceTree = "<group>"; };
+		F8E2AEEAF6D5753C3CF7B21F /* Pods-Airfare.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Airfare.release.xcconfig"; path = "Target Support Files/Pods-Airfare/Pods-Airfare.release.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -37,42 +37,52 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7D2DAACA41B6F23412D6E1A1 /* libPods-SkyLens.a in Frameworks */,
+				C14F8402900366AC4E3DBEF7 /* libPods-Airfare.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		13B07FAE1A68108700A75B9A /* SkyLens */ = {
+		076C0847BEB3CCC44854A8A5 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				2A7D9FE10033B4D99BD88426 /* Pods-Airfare.debug.xcconfig */,
+				F8E2AEEAF6D5753C3CF7B21F /* Pods-Airfare.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		13B07FAE1A68108700A75B9A /* Airfare */ = {
 			isa = PBXGroup;
 			children = (
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
-				F11748442D0722820044C1D9 /* SkyLens-Bridging-Header.h */,
+				F11748442D0722820044C1D9 /* Airfare-Bridging-Header.h */,
 				BB2F792B24A3F905000567C9 /* Supporting */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				EA055885FD4EAC5AFE6B14BD /* PrivacyInfo.xcprivacy */,
+				7B355C64EEF602C7E7E052DD /* PrivacyInfo.xcprivacy */,
 			);
-			name = SkyLens;
+			name = Airfare;
 			sourceTree = "<group>";
 		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				5651169E1DD52D68018BB5FB /* libPods-SkyLens.a */,
+				566362A4C5547602A3B15021 /* libPods-Airfare.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		5F6D9A9478376D6DF895DB4C /* SkyLens */ = {
+		618EB78FA790362FE2990B0A /* Airfare */ = {
 			isa = PBXGroup;
 			children = (
-				0A3C7B126F4AD3725F0C8F9B /* ExpoModulesProvider.swift */,
+				3F5B82C6D1B934C8E034FAE4 /* ExpoModulesProvider.swift */,
 			);
-			name = SkyLens;
+			name = Airfare;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -85,12 +95,12 @@
 		83CBB9F61A601CBA00E9B192 = {
 			isa = PBXGroup;
 			children = (
-				13B07FAE1A68108700A75B9A /* SkyLens */,
+				13B07FAE1A68108700A75B9A /* Airfare */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				FBC38812A593C132591D1F1E /* Pods */,
-				CD0CA7FB29E6C48EDF79ED16 /* ExpoModulesProviders */,
+				076C0847BEB3CCC44854A8A5 /* Pods */,
+				BCBF194A69DE30F729C87A8D /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -100,7 +110,7 @@
 		83CBBA001A601CBA00E9B192 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				13B07F961A680F5B00A75B9A /* SkyLens.app */,
+				13B07F961A680F5B00A75B9A /* Airfare.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -111,50 +121,40 @@
 				BB2F792C24A3F905000567C9 /* Expo.plist */,
 			);
 			name = Supporting;
-			path = SkyLens/Supporting;
+			path = Airfare/Supporting;
 			sourceTree = "<group>";
 		};
-		CD0CA7FB29E6C48EDF79ED16 /* ExpoModulesProviders */ = {
+		BCBF194A69DE30F729C87A8D /* ExpoModulesProviders */ = {
 			isa = PBXGroup;
 			children = (
-				5F6D9A9478376D6DF895DB4C /* SkyLens */,
+				618EB78FA790362FE2990B0A /* Airfare */,
 			);
 			name = ExpoModulesProviders;
-			sourceTree = "<group>";
-		};
-		FBC38812A593C132591D1F1E /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				82F94CBA174D34DC8701515C /* Pods-SkyLens.debug.xcconfig */,
-				80D52EF45BC8080BEDB9AB0D /* Pods-SkyLens.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		13B07F861A680F5B00A75B9A /* SkyLens */ = {
+		13B07F861A680F5B00A75B9A /* Airfare */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "SkyLens" */;
+			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "Airfare" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				42027510F9752F33E27B8437 /* [Expo] Configure project */,
+				CF1D7C565AB27907E24C652A /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				FE29D8A1D3FFC554C8811FC8 /* [CP] Embed Pods Frameworks */,
+				E1C4E1AD7563978C2882B110 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
-			name = SkyLens;
-			productName = SkyLens;
-			productReference = 13B07F961A680F5B00A75B9A /* SkyLens.app */;
+			name = Airfare;
+			productName = Airfare;
+			productReference = 13B07F961A680F5B00A75B9A /* Airfare.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -170,7 +170,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "SkyLens" */;
+			buildConfigurationList = 83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "Airfare" */;
 			compatibilityVersion = "Xcode 3.2";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -183,7 +183,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				13B07F861A680F5B00A75B9A /* SkyLens */,
+				13B07F861A680F5B00A75B9A /* Airfare */,
 			);
 		};
 /* End PBXProject section */
@@ -196,7 +196,7 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				D32D117718FF6656881C0C80 /* PrivacyInfo.xcprivacy in Resources */,
+				21681F4E942EC50C1BE0DD8D /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -235,36 +235,12 @@
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-SkyLens-checkManifestLockResult.txt",
+				"$(DERIVED_FILE_DIR)/Pods-Airfare-checkManifestLockResult.txt",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
-		};
-		42027510F9752F33E27B8437 /* [Expo] Configure project */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/.xcode.env",
-				"$(SRCROOT)/.xcode.env.local",
-				"$(SRCROOT)/SkyLens/SkyLens.entitlements",
-				"$(SRCROOT)/Pods/Target Support Files/Pods-SkyLens/expo-configure-project.sh",
-			);
-			name = "[Expo] Configure project";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(SRCROOT)/Pods/Target Support Files/Pods-SkyLens/ExpoModulesProvider.swift",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-SkyLens/expo-configure-project.sh\"\n";
 		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -272,7 +248,7 @@
 			files = (
 			);
 			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-SkyLens/Pods-SkyLens-resources.sh",
+				"${PODS_ROOT}/Target Support Files/Pods-Airfare/Pods-Airfare-resources.sh",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXApplication/ExpoApplication_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/ExpoConstants_privacy.bundle",
@@ -305,16 +281,40 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-SkyLens/Pods-SkyLens-resources.sh\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Airfare/Pods-Airfare-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		FE29D8A1D3FFC554C8811FC8 /* [CP] Embed Pods Frameworks */ = {
+		CF1D7C565AB27907E24C652A /* [Expo] Configure project */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/.xcode.env",
+				"$(SRCROOT)/.xcode.env.local",
+				"$(SRCROOT)/Airfare/Airfare.entitlements",
+				"$(SRCROOT)/Pods/Target Support Files/Pods-Airfare/expo-configure-project.sh",
+			);
+			name = "[Expo] Configure project";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Pods/Target Support Files/Pods-Airfare/ExpoModulesProvider.swift",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-Airfare/expo-configure-project.sh\"\n";
+		};
+		E1C4E1AD7563978C2882B110 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-SkyLens/Pods-SkyLens-frameworks.sh",
+				"${PODS_ROOT}/Target Support Files/Pods-Airfare/Pods-Airfare-frameworks.sh",
 				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
 				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
 				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
@@ -327,7 +327,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-SkyLens/Pods-SkyLens-frameworks.sh\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Airfare/Pods-Airfare-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
@@ -338,7 +338,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				EBF1FBC5F8906760E0359554 /* ExpoModulesProvider.swift in Sources */,
+				64EBA9792E40CCE35B58E903 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -347,11 +347,11 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 82F94CBA174D34DC8701515C /* Pods-SkyLens.debug.xcconfig */;
+			baseConfigurationReference = 2A7D9FE10033B4D99BD88426 /* Pods-Airfare.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = SkyLens/SkyLens.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Airfare/Airfare.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = UG565K24C7;
 				ENABLE_BITCODE = NO;
@@ -359,7 +359,7 @@
 					"$(inherited)",
 					"FB_SONARKIT_ENABLED=1",
 				);
-				INFOPLIST_FILE = SkyLens/Info.plist;
+				INFOPLIST_FILE = Airfare/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -373,8 +373,8 @@
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = com.martinyis.skylens;
-				PRODUCT_NAME = SkyLens;
-				SWIFT_OBJC_BRIDGING_HEADER = "SkyLens/SkyLens-Bridging-Header.h";
+				PRODUCT_NAME = Airfare;
+				SWIFT_OBJC_BRIDGING_HEADER = "Airfare/Airfare-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -384,14 +384,14 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 80D52EF45BC8080BEDB9AB0D /* Pods-SkyLens.release.xcconfig */;
+			baseConfigurationReference = F8E2AEEAF6D5753C3CF7B21F /* Pods-Airfare.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = SkyLens/SkyLens.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Airfare/Airfare.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = UG565K24C7;
-				INFOPLIST_FILE = SkyLens/Info.plist;
+				INFOPLIST_FILE = Airfare/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -405,8 +405,8 @@
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
 				PRODUCT_BUNDLE_IDENTIFIER = com.martinyis.skylens;
-				PRODUCT_NAME = SkyLens;
-				SWIFT_OBJC_BRIDGING_HEADER = "SkyLens/SkyLens-Bridging-Header.h";
+				PRODUCT_NAME = Airfare;
+				SWIFT_OBJC_BRIDGING_HEADER = "Airfare/Airfare-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
@@ -534,7 +534,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "SkyLens" */ = {
+		13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "Airfare" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				13B07F941A680F5B00A75B9A /* Debug */,
@@ -543,7 +543,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "SkyLens" */ = {
+		83CBB9FA1A601CBA00E9B192 /* Build configuration list for PBXProject "Airfare" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				83CBBA201A601CBA00E9B192 /* Debug */,

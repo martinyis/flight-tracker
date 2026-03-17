@@ -37,8 +37,11 @@ import {
   ScrollText,
   Smartphone,
 } from "lucide-react-native";
+import * as Notifications from "expo-notifications";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "../src/providers/AuthProvider";
 import { useHaptics } from "../src/providers/HapticsProvider";
+import { registerForPushNotifications } from "../src/lib/utils/notifications";
 import MeshBackground from "../src/components/ui/MeshBackground";
 import BottomNavBar from "../src/components/ui/BottomNavBar";
 import { fonts } from "../src/theme";
@@ -321,6 +324,58 @@ export default function SettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Notifications
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const stored = await AsyncStorage.getItem("notifications_enabled");
+      if (stored === "false") {
+        setNotificationsEnabled(false);
+        return;
+      }
+      // Default: enabled if OS permission is granted
+      const { status } = await Notifications.getPermissionsAsync();
+      setNotificationsEnabled(status === "granted" && stored !== "false");
+    })();
+  }, []);
+
+  const handleToggleNotifications = async () => {
+    haptics.light();
+    if (notificationsEnabled) {
+      // Disable: clear push token on backend so server stops sending
+      setNotificationsEnabled(false);
+      AsyncStorage.setItem("notifications_enabled", "false");
+      try {
+        await api.post("/auth/push-token", { pushToken: "" });
+      } catch {
+        // best-effort
+      }
+    } else {
+      // Enable: request permissions and register token
+      const pushToken = await registerForPushNotifications();
+      if (pushToken) {
+        setNotificationsEnabled(true);
+        AsyncStorage.setItem("notifications_enabled", "true");
+        try {
+          await api.post("/auth/push-token", { pushToken });
+        } catch {
+          // best-effort
+        }
+      } else {
+        // Permission denied — guide user to system settings
+        Alert.alert(
+          "Notifications Disabled",
+          "Enable notifications in your device settings to receive price drop alerts.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Open Settings", onPress: () => Linking.openSettings() },
+          ]
+        );
+      }
+    }
+  };
 
   // Edit name sheet state
   const editSheetRef = useRef<BottomSheetModal>(null);
@@ -619,13 +674,19 @@ export default function SettingsScreen() {
                 />
               </View>
               <View style={rowS.divider} />
-              <SettingsRow
-                icon={<Bell size={18} color={C.n500} strokeWidth={2} />}
-                iconColor={C.n500}
-                label="Notifications"
-                value="Coming soon"
-                isLast
-              />
+              <View style={rowS.row}>
+                <View style={[rowS.iconWrap, { backgroundColor: `${C.primary}12` }]}>
+                  <Bell size={18} color={C.primary} strokeWidth={2} />
+                </View>
+                <View style={rowS.labelWrap}>
+                  <Text style={rowS.label}>Notifications</Text>
+                  <Text style={rowS.value}>Price drop alerts</Text>
+                </View>
+                <ToggleSwitch
+                  value={notificationsEnabled}
+                  onToggle={handleToggleNotifications}
+                />
+              </View>
 
               {/* Support / Legal */}
               <Text style={s.sectionLabel}>SUPPORT & LEGAL</Text>

@@ -8,6 +8,13 @@ export const purchaseSchema = {
   }),
 };
 
+export const verifyPurchaseSchema = {
+  body: z.object({
+    transactionId: z.string().min(1, "transactionId is required"),
+    productId: z.string().optional(),
+  }),
+};
+
 export const costQuerySchema = {
   query: z.object({
     tripType: z.enum(["roundtrip", "oneway"]),
