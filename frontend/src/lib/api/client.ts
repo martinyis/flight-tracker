@@ -3,9 +3,13 @@ import * as SecureStore from "expo-secure-store";
 
 const ACCESS_TOKEN_KEY = "auth_token";
 const REFRESH_TOKEN_KEY = "refresh_token";
+const url = "http://10.183.25.195:3000/api";
+const produrl =
+  process.env.EXPO_PUBLIC_API_URL ||
+  "https://flight-tracker-production-c0bb.up.railway.app/api";
 
 const api = axios.create({
-  baseURL: "http://10.183.25.195:3000/api",
+  baseURL: produrl,
   timeout: 10000,
   headers: { "Content-Type": "application/json" },
 });
@@ -85,7 +89,7 @@ api.interceptors.response.use(
       const { data } = await axios.post(
         `${api.defaults.baseURL}/auth/refresh`,
         { refreshToken },
-        { headers: { "Content-Type": "application/json" }, timeout: 10000 }
+        { headers: { "Content-Type": "application/json" }, timeout: 10000 },
       );
 
       await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, data.accessToken);
@@ -103,7 +107,7 @@ api.interceptors.response.use(
     } finally {
       isRefreshing = false;
     }
-  }
+  },
 );
 
 // ── Response interceptor: user-friendly network error messages ────────────

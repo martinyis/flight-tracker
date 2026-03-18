@@ -14,6 +14,7 @@ import {
 } from "../services/flightService";
 import { appendPriceHistory } from "../services/savedSearchService";
 import { sendPushNotification } from "../utils/pushNotification";
+import { generateSmartNotification } from "../services/notificationService";
 import { SENTINEL_TOLERANCE, CRON_GROUP_DELAY_MS, TOP_RESULTS_LIMIT } from "../config/constants";
 import {
   jsonRawLegs, jsonLatestResults, jsonAvailableAirlines,
@@ -197,14 +198,34 @@ export async function runPriceCheck(): Promise<void> {
               },
             });
 
-            // Send push notification on price drop
-            if (cheapestPrice != null && oldPrice != null && cheapestPrice < oldPrice && s.user.pushToken) {
+            // Smart notification
+            const notification = generateSmartNotification({
+              searchId,
+              origin: s.origin,
+              destination: s.destination,
+              tripType: (s.tripType || "oneway") as TripType,
+              oldPrice,
+              newPrice: cheapestPrice,
+              priceHistory: existingHistory,
+              dateFrom: s.dateFrom,
+              trackingDays: s.trackingDays,
+              trackingStartedAt: s.trackingStartedAt,
+              lastNotifiedAt: s.lastNotifiedAt,
+              pushToken: s.user.pushToken,
+            });
+
+            if (notification) {
               sendPushNotification({
-                to: s.user.pushToken,
-                title: "Price Drop!",
-                body: `${s.origin} → ${s.destination} dropped to $${cheapestPrice} (was $${oldPrice})`,
-                data: { searchId },
+                to: s.user.pushToken!,
+                title: notification.title,
+                body: notification.body,
+                data: notification.data,
+                sound: "default",
               });
+              prisma.savedSearch.update({
+                where: { id: searchId },
+                data: { lastNotifiedAt: new Date() },
+              }).catch(() => {});
             }
           }
         } else {
@@ -298,14 +319,34 @@ export async function runPriceCheck(): Promise<void> {
                 },
               });
 
-              // Send push notification on price drop
-              if (cheapestPrice != null && oldPrice != null && cheapestPrice < oldPrice && s.user.pushToken) {
+              // Smart notification
+              const notification = generateSmartNotification({
+                searchId,
+                origin: s.origin,
+                destination: s.destination,
+                tripType: (s.tripType || "roundtrip") as TripType,
+                oldPrice,
+                newPrice: cheapestPrice,
+                priceHistory: existingHistory,
+                dateFrom: s.dateFrom,
+                trackingDays: s.trackingDays,
+                trackingStartedAt: s.trackingStartedAt,
+                lastNotifiedAt: s.lastNotifiedAt,
+                pushToken: s.user.pushToken,
+              });
+
+              if (notification) {
                 sendPushNotification({
-                  to: s.user.pushToken,
-                  title: "Price Drop!",
-                  body: `${s.origin} → ${s.destination} dropped to $${cheapestPrice} (was $${oldPrice})`,
-                  data: { searchId },
+                  to: s.user.pushToken!,
+                  title: notification.title,
+                  body: notification.body,
+                  data: notification.data,
+                  sound: "default",
                 });
+                prisma.savedSearch.update({
+                  where: { id: searchId },
+                  data: { lastNotifiedAt: new Date() },
+                }).catch(() => {});
               }
             }
           }

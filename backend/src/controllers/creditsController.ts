@@ -77,6 +77,8 @@ export const getPacks = asyncHandler(async (_req: AuthRequest, res: Response) =>
 export const verifyPurchase = asyncHandler(async (req: AuthRequest, res: Response) => {
   const userId = Number(req.userId);
   const { transactionId, productId: clientProductId } = req.body;
+  (req as any).log?.info({ transactionId, productId: clientProductId }, "IAP verification started");
+
   const isXcodeTest =
     process.env.APPLE_ENVIRONMENT === "Xcode" && process.env.NODE_ENV !== "production";
 
@@ -118,6 +120,11 @@ export const verifyPurchase = asyncHandler(async (req: AuthRequest, res: Respons
   );
 
   const transactions = await creditService.getTransactions(userId, 1);
+
+  (req as any).log?.info(
+    { credits, balance, alreadyProcessed, productId: resolvedProductId },
+    "IAP verification complete"
+  );
 
   res.json({
     balance,

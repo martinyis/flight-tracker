@@ -18,6 +18,7 @@ import {
 import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
+import Slider from "@react-native-community/slider";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import BackButton from "../src/components/ui/BackButton";
@@ -144,7 +145,7 @@ const SHEET_HEIGHT = SCREEN_HEIGHT * 0.55;
 // Step section IDs
 // ---------------------------------------------------------------------------
 
-type SectionId = "route" | "dates" | "nights" | "preferences";
+type SectionId = "route" | "dates" | "nights";
 
 // ---------------------------------------------------------------------------
 // AnimatedSection — collapses/expands with height + fade animation
@@ -284,12 +285,12 @@ export default function AddSearchScreen() {
     destination: null,
     dateFrom: addDays(new Date(), 7),
     dateTo: addDays(new Date(), 21),
-    minNights: "1",
-    maxNights: "14",
+    minNights: "3",
+    maxNights: "7",
     apiFilters: {},
   });
   const [error, setError] = useState("");
-  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [airlineInput, setAirlineInput] = useState("");
 
   // Track which section is currently expanded (active)
@@ -391,9 +392,9 @@ export default function AddSearchScreen() {
 
   const sectionOrder: SectionId[] = useMemo(() => {
     if (formData.tripType === "roundtrip") {
-      return ["route", "dates", "nights", "preferences"];
+      return ["route", "dates", "nights"];
     }
-    return ["route", "dates", "preferences"];
+    return ["route", "dates"];
   }, [formData.tripType]);
 
   const goToSection = useCallback(
@@ -467,7 +468,10 @@ export default function AddSearchScreen() {
   // Nights section
   // ---------------------------------------------------------------------------
 
-  const nightsSummary = `${formData.minNights} – ${formData.maxNights} nights`;
+  const nightsSummary =
+    formData.minNights === formData.maxNights
+      ? `${formData.minNights} nights`
+      : `${formData.minNights} – ${formData.maxNights} nights`;
 
   const handleNightsNext = useCallback(() => {
     completeSection("nights");
@@ -528,8 +532,9 @@ export default function AddSearchScreen() {
       const updates: Partial<WizardFormData> = { dateFrom: selected };
       if (selected >= formData.dateTo) updates.dateTo = newTo;
       if (Number(formData.maxNights) > maxDays)
-        updates.maxNights = String(maxDays);
-      if (Number(formData.minNights) > maxDays) updates.minNights = "1";
+        updates.maxNights = String(Math.max(1, maxDays));
+      if (Number(formData.minNights) > maxDays)
+        updates.minNights = String(Math.max(1, maxDays));
       updateForm(updates);
     } else {
       const maxDays = Math.floor(
@@ -537,8 +542,9 @@ export default function AddSearchScreen() {
       );
       const updates: Partial<WizardFormData> = { dateTo: selected };
       if (Number(formData.maxNights) > maxDays)
-        updates.maxNights = String(maxDays);
-      if (Number(formData.minNights) > maxDays) updates.minNights = "1";
+        updates.maxNights = String(Math.max(1, maxDays));
+      if (Number(formData.minNights) > maxDays)
+        updates.minNights = String(Math.max(1, maxDays));
       updateForm(updates);
     }
   };
@@ -547,14 +553,22 @@ export default function AddSearchScreen() {
     (formData.dateTo.getTime() - formData.dateFrom.getTime()) / 86400000
   );
 
-  const handleNightsChange = (
-    field: "minNights" | "maxNights",
-    delta: number
-  ) => {
-    haptics.selection();
-    const current = Number(formData[field]) || 0;
-    const next = Math.max(1, Math.min(maxPossibleNights, current + delta));
-    updateForm({ [field]: String(next) });
+  const handleMinNightsChange = (value: number) => {
+    const v = Math.round(value);
+    if (String(v) !== formData.minNights) {
+      haptics.selection();
+      const maxN = Math.max(v, Number(formData.maxNights));
+      updateForm({ minNights: String(v), maxNights: String(maxN) });
+    }
+  };
+
+  const handleMaxNightsChange = (value: number) => {
+    const v = Math.round(value);
+    if (String(v) !== formData.maxNights) {
+      haptics.selection();
+      const minN = Math.min(v, Number(formData.minNights));
+      updateForm({ minNights: String(minN), maxNights: String(v) });
+    }
   };
 
   // ---------------------------------------------------------------------------
@@ -969,68 +983,48 @@ export default function AddSearchScreen() {
                 number={getSectionNumber("nights")}
                 active={isSectionActive("nights")}
                 done={isSectionDone("nights")}
-                title="How long will you stay?"
+                title="Trip length"
                 summary={nightsSummary}
                 onHeaderPress={() => goToSection("nights")}
                 isLastSection={sectionOrder.indexOf("nights") === sectionOrder.length - 1}
               >
                 <View style={styles.nightsInner}>
                   {/* Min nights */}
-                  <View style={styles.nightsBlock}>
-                    <Text style={styles.nightsBlockLabel}>Min nights</Text>
-                    <View style={styles.stepperRow}>
-                      <Pressable
-                        style={({ pressed }) => [
-                          styles.stepperBtn,
-                          pressed && styles.stepperBtnPressed,
-                        ]}
-                        onPress={() => handleNightsChange("minNights", -1)}
-                      >
-                        <Text style={styles.stepperBtnText}>−</Text>
-                      </Pressable>
-                      <Text style={styles.stepperValue}>
-                        {formData.minNights}
-                      </Text>
-                      <Pressable
-                        style={({ pressed }) => [
-                          styles.stepperBtn,
-                          pressed && styles.stepperBtnPressed,
-                        ]}
-                        onPress={() => handleNightsChange("minNights", 1)}
-                      >
-                        <Text style={styles.stepperBtnText}>+</Text>
-                      </Pressable>
+                  <View style={styles.sliderGroup}>
+                    <View style={styles.sliderHeader}>
+                      <Text style={styles.sliderLabel}>Min nights</Text>
+                      <Text style={styles.sliderValue}>{formData.minNights}</Text>
                     </View>
+                    <Slider
+                      style={styles.slider}
+                      minimumValue={1}
+                      maximumValue={Math.max(1, maxPossibleNights)}
+                      step={1}
+                      value={Number(formData.minNights)}
+                      onValueChange={handleMinNightsChange}
+                      minimumTrackTintColor="#2563EB"
+                      maximumTrackTintColor="#E2E8F0"
+                      thumbTintColor="#2563EB"
+                    />
                   </View>
 
-                  <View style={styles.nightsBlockDivider} />
-
                   {/* Max nights */}
-                  <View style={styles.nightsBlock}>
-                    <Text style={styles.nightsBlockLabel}>Max nights</Text>
-                    <View style={styles.stepperRow}>
-                      <Pressable
-                        style={({ pressed }) => [
-                          styles.stepperBtn,
-                          pressed && styles.stepperBtnPressed,
-                        ]}
-                        onPress={() => handleNightsChange("maxNights", -1)}
-                      >
-                        <Text style={styles.stepperBtnText}>−</Text>
-                      </Pressable>
-                      <Text style={styles.stepperValue}>
-                        {formData.maxNights}
-                      </Text>
-                      <Pressable
-                        style={({ pressed }) => [
-                          styles.stepperBtn,
-                          pressed && styles.stepperBtnPressed,
-                        ]}
-                        onPress={() => handleNightsChange("maxNights", 1)}
-                      >
-                        <Text style={styles.stepperBtnText}>+</Text>
-                      </Pressable>
+                  <View style={styles.sliderGroup}>
+                    <View style={styles.sliderHeader}>
+                      <Text style={styles.sliderLabel}>Max nights</Text>
+                      <Text style={styles.sliderValue}>{formData.maxNights}</Text>
                     </View>
+                    <Slider
+                      style={styles.slider}
+                      minimumValue={1}
+                      maximumValue={Math.max(1, maxPossibleNights)}
+                      step={1}
+                      value={Number(formData.maxNights)}
+                      onValueChange={handleMaxNightsChange}
+                      minimumTrackTintColor="#2563EB"
+                      maximumTrackTintColor="#E2E8F0"
+                      thumbTintColor="#2563EB"
+                    />
                   </View>
                 </View>
 
@@ -1050,208 +1044,192 @@ export default function AddSearchScreen() {
             )}
 
             {/* ──────────────────────────────────────────────
-                STEP 4: Preferences
+                Advanced filters (collapsible, not a wizard step)
             ────────────────────────────────────────────── */}
-            <WizardSection
-              number={getSectionNumber("preferences")}
-              active={isSectionActive("preferences")}
-              done={isSectionDone("preferences")}
-              title="Any preferences?"
-              summary={
-                activeFilterCount > 0
-                  ? preferencesSummary
-                  : "No filters applied"
-              }
-              onHeaderPress={() => goToSection("preferences")}
-              isLastSection={true}
+            <Pressable
+              style={styles.advancedToggle}
+              onPress={() => {
+                haptics.selection();
+                LayoutAnimation.configureNext(
+                  LayoutAnimation.Presets.easeInEaseOut
+                );
+                setShowAdvancedFilters((v) => !v);
+              }}
             >
-              {/* Stops */}
-              <Text style={styles.filterGroupLabel}>Stops</Text>
-              <View style={styles.chipRow}>
-                {(
-                  [
-                    { label: "Any", val: undefined },
-                    { label: "Nonstop", val: 1 as const },
-                    { label: "1 stop max", val: 2 as const },
-                  ] as const
-                ).map((opt) => (
-                  <Pressable
-                    key={String(opt.val)}
-                    style={({ pressed }) => [
-                      styles.chip,
-                      formData.apiFilters.stops === opt.val &&
-                        styles.chipActive,
-                      pressed && styles.chipPressed,
-                    ]}
-                    onPress={() => {
+              <Text style={styles.advancedToggleText}>
+                {activeFilterCount > 0
+                  ? `Filters (${activeFilterCount})`
+                  : "Advanced filters"}
+              </Text>
+              {showAdvancedFilters ? (
+                <ChevronUp size={14} color="#64748B" strokeWidth={2} />
+              ) : (
+                <ChevronDown size={14} color="#64748B" strokeWidth={2} />
+              )}
+            </Pressable>
+
+            {showAdvancedFilters && (
+              <View style={styles.advancedContent}>
+                {/* Stops */}
+                <Text style={styles.filterGroupLabel}>Stops</Text>
+                <View style={styles.chipRow}>
+                  {(
+                    [
+                      { label: "Any", val: undefined },
+                      { label: "Nonstop", val: 1 as const },
+                      { label: "1 stop max", val: 2 as const },
+                    ] as const
+                  ).map((opt) => (
+                    <Pressable
+                      key={String(opt.val)}
+                      style={({ pressed }) => [
+                        styles.chip,
+                        formData.apiFilters.stops === opt.val &&
+                          styles.chipActive,
+                        pressed && styles.chipPressed,
+                      ]}
+                      onPress={() => {
+                        haptics.light();
+                        updateForm({
+                          apiFilters: {
+                            ...formData.apiFilters,
+                            stops: opt.val,
+                          },
+                        });
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.chipText,
+                          formData.apiFilters.stops === opt.val &&
+                            styles.chipTextActive,
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                {/* Carry-on toggle */}
+                <View style={styles.filterToggleRow}>
+                  <View>
+                    <Text style={styles.filterGroupLabel}>Carry-on included</Text>
+                    <Text style={styles.filterGroupSub}>
+                      Only show fares with carry-on
+                    </Text>
+                  </View>
+                  <ToggleSwitch
+                    value={!!formData.apiFilters.bags}
+                    onToggle={() => {
                       haptics.light();
                       updateForm({
                         apiFilters: {
                           ...formData.apiFilters,
-                          stops: opt.val,
+                          bags: !formData.apiFilters.bags,
                         },
                       });
                     }}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        formData.apiFilters.stops === opt.val &&
-                          styles.chipTextActive,
-                      ]}
-                    >
-                      {opt.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              {/* Carry-on toggle */}
-              <View style={styles.filterToggleRow}>
-                <View>
-                  <Text style={styles.filterGroupLabel}>Carry-on included</Text>
-                  <Text style={styles.filterGroupSub}>
-                    Only show fares with carry-on
-                  </Text>
+                  />
                 </View>
-                <ToggleSwitch
-                  value={!!formData.apiFilters.bags}
-                  onToggle={() => {
-                    haptics.light();
+
+                {/* Max Duration */}
+                <Text style={[styles.filterGroupLabel, { marginTop: 4 }]}>
+                  Max flight duration
+                </Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.durationScroll}
+                  contentContainerStyle={styles.durationScrollContent}
+                >
+                  {DURATION_OPTIONS.map((opt) => (
+                    <Pressable
+                      key={opt.value}
+                      style={[
+                        styles.chip,
+                        (formData.apiFilters.maxDuration ?? 0) ===
+                          opt.value && styles.chipActive,
+                      ]}
+                      onPress={() => {
+                        haptics.light();
+                        updateForm({
+                          apiFilters: {
+                            ...formData.apiFilters,
+                            maxDuration: opt.value || undefined,
+                          },
+                        });
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.chipText,
+                          (formData.apiFilters.maxDuration ?? 0) ===
+                            opt.value && styles.chipTextActive,
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+
+                {/* Airlines */}
+                <Text style={[styles.filterGroupLabel, { marginTop: 12 }]}>
+                  Airlines
+                </Text>
+                <View style={styles.airlineModeRow}>
+                  {(["include", "exclude"] as const).map((mode) => (
+                    <Pressable
+                      key={mode}
+                      style={[
+                        styles.chip,
+                        (formData.apiFilters.airlineMode ?? "include") ===
+                          mode && styles.chipActive,
+                      ]}
+                      onPress={() => {
+                        haptics.light();
+                        updateForm({
+                          apiFilters: {
+                            ...formData.apiFilters,
+                            airlineMode: mode,
+                          },
+                        });
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.chipText,
+                          (formData.apiFilters.airlineMode ?? "include") ===
+                            mode && styles.chipTextActive,
+                        ]}
+                      >
+                        {mode === "include" ? "Include only" : "Exclude"}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <TextInput
+                  style={styles.airlineTextInput}
+                  placeholder="e.g. UA, DL, AA"
+                  placeholderTextColor="#94A3B8"
+                  value={airlineInput}
+                  onChangeText={(text) => {
+                    setAirlineInput(text);
                     updateForm({
-                      apiFilters: {
-                        ...formData.apiFilters,
-                        bags: !formData.apiFilters.bags,
-                      },
+                      apiFilters: { ...formData.apiFilters, airlines: text },
                     });
                   }}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  returnKeyType="done"
                 />
-              </View>
-
-              {/* More filters toggle */}
-              <Pressable
-                style={({ pressed }) => [
-                  styles.moreFiltersToggle,
-                  pressed && styles.moreFiltersTogglePressed,
-                ]}
-                onPress={() => {
-                  haptics.selection();
-                  LayoutAnimation.configureNext(
-                    LayoutAnimation.Presets.easeInEaseOut
-                  );
-                  setShowMoreFilters((v) => !v);
-                }}
-              >
-                <Text style={styles.moreFiltersToggleText}>
-                  {showMoreFilters ? "Hide" : "More"} filters
+                <Text style={styles.airlineHint}>
+                  Enter IATA airline codes separated by commas
                 </Text>
-                {showMoreFilters ? (
-                  <ChevronUp size={16} color="#3B82F6" strokeWidth={2} />
-                ) : (
-                  <ChevronDown size={16} color="#3B82F6" strokeWidth={2} />
-                )}
-              </Pressable>
-
-              {showMoreFilters && (
-                <View style={styles.moreFiltersContent}>
-                  {/* Max Duration */}
-                  <Text style={[styles.filterGroupLabel, { marginTop: 4 }]}>
-                    Max flight duration
-                  </Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.durationScroll}
-                    contentContainerStyle={styles.durationScrollContent}
-                  >
-                    {DURATION_OPTIONS.map((opt) => (
-                      <Pressable
-                        key={opt.value}
-                        style={[
-                          styles.chip,
-                          (formData.apiFilters.maxDuration ?? 0) ===
-                            opt.value && styles.chipActive,
-                        ]}
-                        onPress={() => {
-                          haptics.light();
-                          updateForm({
-                            apiFilters: {
-                              ...formData.apiFilters,
-                              maxDuration: opt.value || undefined,
-                            },
-                          });
-                        }}
-                      >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            (formData.apiFilters.maxDuration ?? 0) ===
-                              opt.value && styles.chipTextActive,
-                          ]}
-                        >
-                          {opt.label}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-
-                  {/* Airlines */}
-                  <Text style={[styles.filterGroupLabel, { marginTop: 12 }]}>
-                    Airlines
-                  </Text>
-                  <View style={styles.airlineModeRow}>
-                    {(["include", "exclude"] as const).map((mode) => (
-                      <Pressable
-                        key={mode}
-                        style={[
-                          styles.chip,
-                          (formData.apiFilters.airlineMode ?? "include") ===
-                            mode && styles.chipActive,
-                        ]}
-                        onPress={() => {
-                          haptics.light();
-                          updateForm({
-                            apiFilters: {
-                              ...formData.apiFilters,
-                              airlineMode: mode,
-                            },
-                          });
-                        }}
-                      >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            (formData.apiFilters.airlineMode ?? "include") ===
-                              mode && styles.chipTextActive,
-                          ]}
-                        >
-                          {mode === "include" ? "Include only" : "Exclude"}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-
-                  <TextInput
-                    style={styles.airlineTextInput}
-                    placeholder="e.g. UA, DL, AA"
-                    placeholderTextColor="#94A3B8"
-                    value={airlineInput}
-                    onChangeText={(text) => {
-                      setAirlineInput(text);
-                      updateForm({
-                        apiFilters: { ...formData.apiFilters, airlines: text },
-                      });
-                    }}
-                    autoCapitalize="characters"
-                    autoCorrect={false}
-                    returnKeyType="done"
-                  />
-                  <Text style={styles.airlineHint}>
-                    Enter IATA airline codes separated by commas
-                  </Text>
-                </View>
-              )}
-            </WizardSection>
+              </View>
+            )}
           </View>
 
           {/* ================================================================
@@ -1861,56 +1839,36 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
 
-  // Nights stepper
+  // Nights sliders
   nightsInner: {
     paddingHorizontal: 16,
     paddingTop: 4,
+    paddingBottom: 4,
+    gap: 16,
   },
-  nightsBlock: {
+  sliderGroup: {
+    gap: 0,
+  },
+  sliderHeader: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 16,
+    alignItems: "center",
   },
-  nightsBlockLabel: {
+  sliderLabel: {
     fontFamily: "Outfit_600SemiBold",
     fontSize: 15,
     color: "#0F172A",
   },
-  nightsBlockDivider: {
-    height: 1,
-    backgroundColor: "#F1F5F9",
-  },
-  stepperRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-  },
-  stepperBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#EFF6FF",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#BFDBFE",
-  },
-  stepperBtnPressed: {
-    backgroundColor: "#DBEAFE",
-  },
-  stepperBtnText: {
+  sliderValue: {
     fontFamily: "Outfit_700Bold",
-    fontSize: 18,
-    color: "#3B82F6",
-    lineHeight: 22,
-  },
-  stepperValue: {
-    fontFamily: "Outfit_800ExtraBold",
     fontSize: 20,
-    color: "#0F172A",
-    minWidth: 30,
-    textAlign: "center",
+    color: "#2563EB",
+    minWidth: 28,
+    textAlign: "right",
+  },
+  slider: {
+    width: "100%",
+    height: 40,
   },
 
   // Preferences / filters
@@ -1995,32 +1953,28 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
 
-  // More filters
-  moreFiltersToggle: {
+  // Advanced filters toggle
+  advancedToggle: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: 10,
     marginTop: 4,
   },
-  moreFiltersTogglePressed: {
-    opacity: 0.7,
-  },
-  moreFiltersToggleText: {
-    fontFamily: "Outfit_600SemiBold",
+  advancedToggleText: {
+    fontFamily: "Outfit_500Medium",
     fontSize: 13,
-    color: "#3B82F6",
+    color: "#64748B",
   },
-  moreFiltersToggleChevron: {
-    fontFamily: "Outfit_400Regular",
-    fontSize: 11,
-    color: "#3B82F6",
-  },
-  moreFiltersContent: {
-    paddingBottom: 4,
+  advancedContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    marginHorizontal: 20,
+    paddingVertical: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   durationScroll: {
     paddingLeft: 16,

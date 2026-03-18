@@ -2,6 +2,7 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect, useState, useCallback } from "react";
 import { ActivityIndicator, View, StatusBar } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
+import * as Notifications from "expo-notifications";
 import { useFonts } from "expo-font";
 import {
   Outfit_100Thin,
@@ -24,6 +25,7 @@ import { NetworkProvider } from "../src/providers/NetworkProvider";
 import { ToastProvider } from "../src/providers/ToastProvider";
 import OfflineBanner from "../src/components/ui/OfflineBanner";
 import AnimatedSplashGate from "../src/components/splash/AnimatedSplashGate";
+import ErrorBoundary from "../src/components/ErrorBoundary";
 
 import { fonts } from "../src/theme";
 
@@ -51,6 +53,31 @@ function RootLayoutNav() {
       router.replace("/");
     }
   }, [token, isLoading, segments]);
+
+  // Navigate to search detail when user taps a notification
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const data = response.notification.request.content.data;
+        if (data?.searchId) {
+          router.push(`/search/${data.searchId}`);
+        }
+      }
+    );
+    return () => subscription.remove();
+  }, [router]);
+
+  // Handle cold-start notification tap (app was killed)
+  useEffect(() => {
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) {
+        const data = response.notification.request.content.data;
+        if (data?.searchId) {
+          setTimeout(() => router.push(`/search/${data.searchId}`), 500);
+        }
+      }
+    });
+  }, []);
 
   if (isLoading) {
     return (
@@ -100,6 +127,8 @@ function RootLayoutNav() {
         {/* Normal stack screens: default iOS slide */}
         <Stack.Screen name="add-search" />
         <Stack.Screen name="search/[id]" />
+        <Stack.Screen name="activity-preferences" />
+        <Stack.Screen name="support-legal" />
       </Stack>
     </>
   );
@@ -137,6 +166,7 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
       <NetworkProvider>
         <HapticsProvider>
           <AuthProvider>
@@ -155,6 +185,7 @@ export default function RootLayout() {
           </AuthProvider>
         </HapticsProvider>
       </NetworkProvider>
+      </ErrorBoundary>
     </GestureHandlerRootView>
   );
 }

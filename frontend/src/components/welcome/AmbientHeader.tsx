@@ -32,12 +32,12 @@ function getGreeting(): string {
 
 function getInsight(props: AmbientHeaderProps): string {
   const { activeCount, priceDropCount, totalCount } = props;
-  if (totalCount === 0) return "Start tracking your first flight";
+  if (totalCount === 0) return "Find your cheapest flight";
   if (priceDropCount > 0)
-    return `${priceDropCount} price${priceDropCount > 1 ? "s" : ""} dropped recently`;
+    return `${priceDropCount} price${priceDropCount > 1 ? "s" : ""} dropped \u2014 you're saving`;
   if (activeCount === 0) return "All searches paused";
-  if (activeCount === 1) return "1 search tracking prices for you";
-  return `${activeCount} searches tracking prices`;
+  if (activeCount === 1) return "1 search finding deals for you";
+  return `${activeCount} searches finding deals`;
 }
 
 // ---------------------------------------------------------------------------

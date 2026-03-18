@@ -24,6 +24,10 @@ export function authenticate(
       return;
     }
     req.userId = payload.userId;
+    // Bind userId to pino-http logger so all request-scoped logs include it
+    if ((req as any).log?.setBindings) {
+      (req as any).log.setBindings({ userId: Number(payload.userId) });
+    }
     next();
   } catch {
     res.status(401).json({ error: "Invalid or expired token" });

@@ -7,6 +7,7 @@ interface PushMessage {
   title: string;
   body: string;
   data?: Record<string, unknown>;
+  sound?: "default" | null;
 }
 
 export async function sendPushNotification(message: PushMessage): Promise<void> {

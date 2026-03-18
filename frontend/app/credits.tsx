@@ -108,7 +108,7 @@ function typeLabel(type: string): string {
     case "search":
       return "Search";
     case "tracking":
-      return "Tracking";
+      return "Watching prices for you";
     case "refund":
       return "Refund";
     default:

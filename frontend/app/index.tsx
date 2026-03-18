@@ -138,17 +138,28 @@ function trackingDaysLeft(
 function getSmartHeadline(searches: SavedSearchSummary[]): string {
   if (searches.length === 0) return "";
 
+  // Show total savings across all tracked routes
+  let totalSaved = 0;
   for (const s of searches) {
-    const t = getRecentTrend(s.priceHistory, s.cheapestPrice);
+    const t = getOverallTrend(s.priceHistory, s.cheapestPrice);
+    if (t && t.direction === "down" && t.amount > 0) totalSaved += t.amount;
+  }
+
+  // Highlight biggest single-route savings
+  for (const s of searches) {
+    const t = getOverallTrend(s.priceHistory, s.cheapestPrice);
     if (t && t.direction === "down" && t.amount > 0) {
-      return `${s.origin} to ${getCityByIata(s.destination) || s.destination} dropped $${t.amount}`;
+      const dest = getCityByIata(s.destination) || s.destination;
+      return `Saving $${t.amount} on ${s.origin} \u2192 ${dest}`;
     }
   }
 
+  // Alert on price spikes — urgency framing
   for (const s of searches) {
     const t = getRecentTrend(s.priceHistory, s.cheapestPrice);
     if (t && t.direction === "up" && t.amount >= 20) {
-      return `${s.origin} to ${getCityByIata(s.destination) || s.destination} jumped $${t.amount}`;
+      const dest = getCityByIata(s.destination) || s.destination;
+      return `${s.origin} \u2192 ${dest} up $${t.amount} \u2014 book soon`;
     }
   }
 
@@ -157,12 +168,13 @@ function getSmartHeadline(searches: SavedSearchSummary[]): string {
     const best = priced.reduce((a, b) =>
       (a.cheapestPrice ?? Infinity) < (b.cheapestPrice ?? Infinity) ? a : b
     );
-    return `Cheapest: ${best.origin} to ${getCityByIata(best.destination) || best.destination} at $${best.cheapestPrice}`;
+    const dest = getCityByIata(best.destination) || best.destination;
+    return `Best deal: ${best.origin} \u2192 ${dest} at $${best.cheapestPrice}`;
   }
 
   const active = searches.filter((s) => s.active).length;
   if (active === 0) return "Your searches are paused";
-  return `Watching ${searches.length} route${searches.length > 1 ? "s" : ""}`;
+  return `Watching ${searches.length} route${searches.length > 1 ? "s" : ""} for deals`;
 }
 
 // ---------------------------------------------------------------------------
@@ -335,7 +347,7 @@ function SearchRow({
       status =
         left === 0 ? "Expires today" : left === 1 ? "Expires tomorrow" : `${left}d left`;
     } else if (item.lastCheckedAt) {
-      status = `Checked ${timeAgo(item.lastCheckedAt)}`;
+      status = `Last checked ${timeAgo(item.lastCheckedAt)} — nothing cheaper yet`;
     }
   }
 
@@ -385,8 +397,9 @@ function SearchRow({
                 { color: trend.direction === "down" ? C.greenDark : C.red },
               ]}
             >
-              {trend.direction === "down" ? "\u2193" : "\u2191"} ${trend.amount}{" "}
-              since tracking
+              {trend.direction === "down"
+                ? `\u2193 $${trend.amount} saved`
+                : `\u2191 $${trend.amount} since tracking`}
             </Text>
           </View>
         )}
@@ -505,12 +518,12 @@ function OnboardingState({ onAdd }: { onAdd: () => void }) {
     >
       {/* Hero headline */}
       <Text style={obS.title}>
-        You pick the dates.{"\n"}
-        <Text style={obS.titleAccent}>We find the deal.</Text>
+        Stop overpaying{"\n"}
+        <Text style={obS.titleAccent}>for flights.</Text>
       </Text>
       <Text style={obS.subtitle}>
-        Give us a flexible range and we'll search every date combination to
-        find the absolute cheapest flight.
+        We search every date combination to find the absolute cheapest
+        flight — and alert you when prices drop.
       </Text>
 
       {/* ── "Without" section ── */}
@@ -568,7 +581,7 @@ function OnboardingState({ onAdd }: { onAdd: () => void }) {
         style={({ pressed }) => [obS.cta, pressed && obS.ctaPressed]}
         onPress={onAdd}
       >
-        <Text style={obS.ctaText}>Find my cheapest flight</Text>
+        <Text style={obS.ctaText}>Start saving on flights</Text>
         <ChevronRight size={18} color="#FFF" strokeWidth={2.5} />
       </Pressable>
     </Animated.View>
@@ -790,7 +803,7 @@ function PriceIntelligence({ searches }: { searches: SavedSearchSummary[] }) {
         big.priceHistory[big.priceHistory.length - 1].cheapestPrice <
         big.priceHistory[big.priceHistory.length - 2].cheapestPrice;
       rows.push({
-        label: dir ? "Price drop" : "Price spike",
+        label: dir ? "You saved" : "Price spike",
         value: `${dir ? "\u2193" : "\u2191"} $${bigD}`,
         sub: `${big.origin} \u2192 ${getCityByIata(big.destination) || big.destination}`,
         accent: dir ? C.green : C.red,

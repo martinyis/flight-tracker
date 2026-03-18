@@ -1,6 +1,9 @@
 import prisma from "../config/db";
 import { PaymentRequiredError } from "../errors/AppError";
 import { SIGNUP_BONUS } from "../config/constants";
+import logger from "../config/logger";
+
+const log = logger.child({ component: "credits" });
 
 /** Search credit cost tiers based on combo count (~1.5x API cost, rounded up to nearest 5) */
 const SEARCH_TIERS: [number, number][] = [
@@ -91,6 +94,7 @@ export async function deductCredits(
       },
     });
 
+    log.info({ userId, amount, type, searchId, remaining: updated.creditBalance }, "Credits deducted");
     return updated.creditBalance;
   }, { isolationLevel: "Serializable" });
 }
@@ -117,6 +121,7 @@ export async function addCredits(
       },
     });
 
+    log.info({ userId, amount, type, remaining: updated.creditBalance }, "Credits added");
     return updated.creditBalance;
   });
 }
@@ -157,6 +162,7 @@ export async function addCreditsFromApple(
     where: { appleTransactionId },
   });
   if (existing) {
+    log.info({ userId, appleTransactionId }, "Apple IAP already processed (dedup)");
     const balance = await getBalance(userId);
     return { balance, alreadyProcessed: true };
   }
@@ -183,10 +189,12 @@ export async function addCreditsFromApple(
       return updated.creditBalance;
     }, { isolationLevel: "Serializable" });
 
+    log.info({ userId, amount, appleTransactionId, appleProductId, remaining: balance }, "Apple IAP credits granted");
     return { balance, alreadyProcessed: false };
   } catch (err: any) {
     // Handle unique constraint violation (race condition dedup)
     if (err.code === "P2002" && err.meta?.target?.includes("apple_transaction_id")) {
+      log.warn({ userId, appleTransactionId }, "Apple IAP race condition dedup (P2002)");
       const balance = await getBalance(userId);
       return { balance, alreadyProcessed: true };
     }

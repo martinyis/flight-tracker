@@ -250,7 +250,7 @@ export default function WelcomeScreen() {
         >
           <Text style={styles.brandName}>AirFare</Text>
           <Text style={styles.tagline}>
-            We check every date so you don't have to.
+            Never overpay for flights again.
           </Text>
         </Animated.View>
 

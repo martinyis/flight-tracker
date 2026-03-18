@@ -43,12 +43,12 @@ function buildTips(origin: string, destination: string, comboCount?: number) {
   return [
     combo
       ? `Checking ${comboCount} date combinations for ${route}`
-      : `Searching flights for ${route}`,
+      : `Scanning for better deals on ${route}`,
     "We run a separate search for every date combination \u2014 so you don\u2019t have to",
     "Your results will show the cheapest price for each departure date",
     "Tap any result card to see full flight details, stops, and airlines",
-    "Found a great price? Enable tracking and we\u2019ll alert you if it drops",
-    "We check tracked flight prices every 4 hours to catch flash sales",
+    "Found a great price? Start watching and we\u2019ll alert you if it drops",
+    "We scan watched flight prices every 4 hours to catch flash sales",
     "Being flexible by just 1\u20132 days on your return can save 20\u201330%",
     "Red-eye flights departing after 10pm are often 15% cheaper",
     "Prices tend to spike 3 weeks before departure as last-minute demand rises",
@@ -540,8 +540,8 @@ export default function SearchingOverlay({
 
   const subtitle =
     comboCount && comboCount > 1
-      ? `Searching ${comboCount} date combinations`
-      : "Searching flights";
+      ? `Scanning ${comboCount} date combinations`
+      : "Scanning for better deals";
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeIn }]}>

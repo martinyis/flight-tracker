@@ -117,7 +117,7 @@ export default function PendingSearchBanner() {
             {isSearching && (
               <>
                 <Text style={styles.title}>
-                  Searching {pending.origin} → {pending.destination}...
+                  Scanning for better deals {pending.origin} → {pending.destination}...
                 </Text>
                 <Text style={styles.subtitle}>
                   We'll let you know when it's ready

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -10,11 +10,10 @@ import {
   StatusBar,
   Animated,
   Easing,
-  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect } from "expo-router";
-import BottomSheet, {
+import { useFocusEffect, useRouter } from "expo-router";
+import {
   BottomSheetModal,
   BottomSheetView,
   BottomSheetTextInput,
@@ -22,26 +21,17 @@ import BottomSheet, {
 } from "@gorhom/bottom-sheet";
 import {
   Mail,
-  Calendar,
-  Search,
-  Coins,
   ChevronRight,
-  Bell,
   Shield,
   LogOut,
   UserPen,
   Trash2,
   X,
   LifeBuoy,
-  FileText,
-  ScrollText,
-  Smartphone,
+  SlidersHorizontal,
 } from "lucide-react-native";
-import * as Notifications from "expo-notifications";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "../src/providers/AuthProvider";
 import { useHaptics } from "../src/providers/HapticsProvider";
-import { registerForPushNotifications } from "../src/lib/utils/notifications";
 import MeshBackground from "../src/components/ui/MeshBackground";
 import BottomNavBar from "../src/components/ui/BottomNavBar";
 import { fonts } from "../src/theme";
@@ -177,59 +167,6 @@ const loadS = StyleSheet.create({
 });
 
 // ---------------------------------------------------------------------------
-// Toggle switch
-// ---------------------------------------------------------------------------
-
-function ToggleSwitch({ value, onToggle }: { value: boolean; onToggle: () => void }) {
-  const knobX = useRef(new Animated.Value(value ? 1 : 0)).current;
-
-  useEffect(() => {
-    Animated.timing(knobX, {
-      toValue: value ? 1 : 0,
-      duration: 200,
-      useNativeDriver: false,
-    }).start();
-  }, [value]);
-
-  const translateX = knobX.interpolate({
-    inputRange: [0, 1],
-    outputRange: [2, 22],
-  });
-
-  return (
-    <Pressable
-      onPress={onToggle}
-      style={[toggleS.track, value && toggleS.trackOn]}
-      hitSlop={8}
-    >
-      <Animated.View style={[toggleS.knob, { transform: [{ translateX }] }]} />
-    </Pressable>
-  );
-}
-
-const toggleS = StyleSheet.create({
-  track: {
-    width: 48,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: C.n300,
-    justifyContent: "center",
-  },
-  trackOn: { backgroundColor: C.primary },
-  knob: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-});
-
-// ---------------------------------------------------------------------------
 // Settings row component
 // ---------------------------------------------------------------------------
 
@@ -320,62 +257,11 @@ export default function SettingsScreen() {
   const { logout, deleteAccount } = useAuth();
   const haptics = useHaptics();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-
-  // Notifications
-  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
-
-  useEffect(() => {
-    (async () => {
-      const stored = await AsyncStorage.getItem("notifications_enabled");
-      if (stored === "false") {
-        setNotificationsEnabled(false);
-        return;
-      }
-      // Default: enabled if OS permission is granted
-      const { status } = await Notifications.getPermissionsAsync();
-      setNotificationsEnabled(status === "granted" && stored !== "false");
-    })();
-  }, []);
-
-  const handleToggleNotifications = async () => {
-    haptics.light();
-    if (notificationsEnabled) {
-      // Disable: clear push token on backend so server stops sending
-      setNotificationsEnabled(false);
-      AsyncStorage.setItem("notifications_enabled", "false");
-      try {
-        await api.post("/auth/push-token", { pushToken: "" });
-      } catch {
-        // best-effort
-      }
-    } else {
-      // Enable: request permissions and register token
-      const pushToken = await registerForPushNotifications();
-      if (pushToken) {
-        setNotificationsEnabled(true);
-        AsyncStorage.setItem("notifications_enabled", "true");
-        try {
-          await api.post("/auth/push-token", { pushToken });
-        } catch {
-          // best-effort
-        }
-      } else {
-        // Permission denied — guide user to system settings
-        Alert.alert(
-          "Notifications Disabled",
-          "Enable notifications in your device settings to receive price drop alerts.",
-          [
-            { text: "Cancel", style: "cancel" },
-            { text: "Open Settings", onPress: () => Linking.openSettings() },
-          ]
-        );
-      }
-    }
-  };
 
   // Edit name sheet state
   const editSheetRef = useRef<BottomSheetModal>(null);
@@ -624,89 +510,26 @@ export default function SettingsScreen() {
                 iconColor={C.primary}
                 label="Signed in with"
                 value={getProviderLabel(profile.provider)}
+                isLast
               />
+
+              {/* Navigation rows */}
+              <Text style={s.sectionLabel}>MORE</Text>
               <SettingsRow
                 icon={
-                  <Calendar size={18} color={C.primary} strokeWidth={2} />
+                  <SlidersHorizontal size={18} color={C.primary} strokeWidth={2} />
                 }
                 iconColor={C.primary}
-                label="Member since"
-                value={formatMemberSince(profile.createdAt)}
-                isLast
+                label="Activity & Preferences"
+                value="Searches, notifications, haptics"
+                onPress={() => { haptics.light(); router.push("/activity-preferences"); }}
               />
-
-              {/* Activity section */}
-              <Text style={s.sectionLabel}>ACTIVITY</Text>
-              <SettingsRow
-                icon={
-                  <Search size={18} color={C.warm500} strokeWidth={2} />
-                }
-                iconColor={C.warm500}
-                label="Active searches"
-                value={`${profile.activeSearches} tracking`}
-              />
-              <SettingsRow
-                icon={
-                  <Coins size={18} color={C.warm500} strokeWidth={2} />
-                }
-                iconColor={C.warm500}
-                label="Credits balance"
-                value={`${profile.creditBalance} credits`}
-                isLast
-              />
-
-              {/* Preferences section */}
-              <Text style={s.sectionLabel}>PREFERENCES</Text>
-              <View style={rowS.row}>
-                <View style={[rowS.iconWrap, { backgroundColor: `${C.primary}12` }]}>
-                  <Smartphone size={18} color={C.primary} strokeWidth={2} />
-                </View>
-                <View style={rowS.labelWrap}>
-                  <Text style={rowS.label}>Haptic Feedback</Text>
-                  <Text style={rowS.value}>Vibration on interactions</Text>
-                </View>
-                <ToggleSwitch
-                  value={haptics.enabled}
-                  onToggle={() => {
-                    haptics.light();
-                    haptics.setEnabled(!haptics.enabled);
-                  }}
-                />
-              </View>
-              <View style={rowS.divider} />
-              <View style={rowS.row}>
-                <View style={[rowS.iconWrap, { backgroundColor: `${C.primary}12` }]}>
-                  <Bell size={18} color={C.primary} strokeWidth={2} />
-                </View>
-                <View style={rowS.labelWrap}>
-                  <Text style={rowS.label}>Notifications</Text>
-                  <Text style={rowS.value}>Price drop alerts</Text>
-                </View>
-                <ToggleSwitch
-                  value={notificationsEnabled}
-                  onToggle={handleToggleNotifications}
-                />
-              </View>
-
-              {/* Support / Legal */}
-              <Text style={s.sectionLabel}>SUPPORT & LEGAL</Text>
               <SettingsRow
                 icon={<LifeBuoy size={18} color={C.n500} strokeWidth={2} />}
                 iconColor={C.n500}
-                label="Contact Support"
-                onPress={() => { haptics.light(); Linking.openURL("mailto:support@example.com"); }}
-              />
-              <SettingsRow
-                icon={<FileText size={18} color={C.n500} strokeWidth={2} />}
-                iconColor={C.n500}
-                label="Privacy Policy"
-                onPress={() => { haptics.light(); Alert.alert("Coming Soon", "Privacy Policy will be available soon."); }}
-              />
-              <SettingsRow
-                icon={<ScrollText size={18} color={C.n500} strokeWidth={2} />}
-                iconColor={C.n500}
-                label="Terms of Service"
-                onPress={() => { haptics.light(); Alert.alert("Coming Soon", "Terms of Service will be available soon."); }}
+                label="Support & Legal"
+                value="Help, privacy, terms"
+                onPress={() => { haptics.light(); router.push("/support-legal"); }}
                 isLast
               />
 

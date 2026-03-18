@@ -644,8 +644,8 @@ export default function SearchDetailScreen() {
       const status = err.response?.status;
       if (status === 402) {
         Alert.alert(
-          "Tracking Required",
-          "Activate price tracking to refresh prices.",
+          "Watching prices for you",
+          "Activate price watching to refresh prices.",
           [
             { text: "Cancel", style: "cancel" },
             {
@@ -985,7 +985,7 @@ export default function SearchDetailScreen() {
             <>
               <View style={styles.metaDot} />
               <Text style={styles.metaTimestamp}>
-                {timeAgo(search.lastCheckedAt)}
+                Last checked {timeAgo(search.lastCheckedAt)}
               </Text>
             </>
           )}
@@ -998,7 +998,7 @@ export default function SearchDetailScreen() {
               <ActivityIndicator size="small" color="#2F9CF4" />
               <Text style={styles.actionLineRefreshing}>
                 {refreshPhase <= 1
-                  ? "Searching flights..."
+                  ? "Scanning for better deals..."
                   : refreshPhase === 2
                   ? "Comparing prices..."
                   : "Almost done..."}
@@ -1043,7 +1043,7 @@ export default function SearchDetailScreen() {
               <View style={styles.actionLineRow}>
                 <RefreshCycleIcon size={16} color="#F59E0B" />
                 <Text style={styles.actionLineAmber}>
-                  Track price changes
+                  Watch for better deals
                 </Text>
                 <ArrowIcon size={10} color="#F59E0B" />
               </View>
@@ -1055,7 +1055,7 @@ export default function SearchDetailScreen() {
             >
               <View style={styles.actionLineRow}>
                 <Text style={styles.actionLineTappable}>
-                  Check prices
+                  Scan for better deals
                 </Text>
                 <ArrowIcon size={10} color="#2F9CF4" />
               </View>
@@ -1152,7 +1152,7 @@ export default function SearchDetailScreen() {
               {activatingTracking ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <Text style={styles.trackBtnText}>Track</Text>
+                <Text style={styles.trackBtnText}>Watch</Text>
               )}
             </Pressable>
             {/* Cancel */}

@@ -1,6 +1,9 @@
 import fs from "fs";
 import jwt from "jsonwebtoken";
 import logger from "../config/logger";
+import { BadRequestError } from "../errors/AppError";
+
+const log = logger.child({ component: "appleIap" });
 
 // ── Configuration ─────────────────────────────────────────────────────────
 
@@ -72,7 +75,7 @@ export async function getTransaction(transactionId: string): Promise<AppleTransa
   if (APPLE_ENVIRONMENT === "Production") {
     response = await fetchTransaction(APPLE_PRODUCTION_URL, transactionId);
     if (response.status === 404) {
-      logger.info({ transactionId }, "Transaction not found in production, trying sandbox");
+      log.info({ transactionId }, "Transaction not found in production, trying sandbox");
       response = await fetchTransaction(APPLE_SANDBOX_URL, transactionId);
     }
   } else {
@@ -81,12 +84,14 @@ export async function getTransaction(transactionId: string): Promise<AppleTransa
 
   if (!response.ok) {
     const body = await response.text();
-    logger.error({ status: response.status, body, transactionId }, "Apple API error");
+    log.error({ status: response.status, body, transactionId, environment: APPLE_ENVIRONMENT }, "Apple API error");
     throw new Error(`Apple API returned ${response.status}: ${body}`);
   }
 
   const data = (await response.json()) as { signedTransactionInfo: string };
-  return decodeSignedTransaction(data.signedTransactionInfo);
+  const tx = decodeSignedTransaction(data.signedTransactionInfo);
+  log.info({ transactionId, productId: tx.productId, environment: tx.environment }, "Apple transaction verified");
+  return tx;
 }
 
 // ── JWS Decoding ──────────────────────────────────────────────────────────
@@ -119,12 +124,15 @@ export function creditsForProduct(productId: string): number | null {
 
 export function validateTransaction(tx: AppleTransaction): void {
   if (tx.bundleId !== APPLE_BUNDLE_ID) {
-    throw new Error(`Bundle ID mismatch: expected ${APPLE_BUNDLE_ID}, got ${tx.bundleId}`);
+    log.warn({ expected: APPLE_BUNDLE_ID, got: tx.bundleId, transactionId: tx.transactionId }, "Bundle ID mismatch");
+    throw new BadRequestError(`Bundle ID mismatch: expected ${APPLE_BUNDLE_ID}, got ${tx.bundleId}`);
   }
   if (!PRODUCT_CREDITS[tx.productId]) {
-    throw new Error(`Unknown product ID: ${tx.productId}`);
+    log.warn({ productId: tx.productId, transactionId: tx.transactionId }, "Unknown product ID");
+    throw new BadRequestError(`Unknown product ID: ${tx.productId}`);
   }
   if (tx.type !== "Consumable") {
-    throw new Error(`Unexpected transaction type: ${tx.type}`);
+    log.warn({ type: tx.type, transactionId: tx.transactionId }, "Unexpected transaction type");
+    throw new BadRequestError(`Unexpected transaction type: ${tx.type}`);
   }
 }

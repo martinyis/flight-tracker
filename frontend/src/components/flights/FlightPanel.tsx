@@ -239,7 +239,7 @@ export default function FlightPanel({
                   <Text style={styles.priceLabel}>cheapest found</Text>
                 </>
               ) : (
-                <PulsingText text="Searching..." />
+                <PulsingText text="Scanning..." />
               )}
             </View>
 
@@ -278,8 +278,8 @@ export default function FlightPanel({
             <View style={styles.statusRow}>
               <Text style={styles.checkedText}>
                 {data.lastCheckedAt
-                  ? `Checked ${timeAgo(data.lastCheckedAt)}`
-                  : "Not yet checked"}
+                  ? `Last checked ${timeAgo(data.lastCheckedAt)} — nothing cheaper yet`
+                  : "Not yet scanned"}
               </Text>
               {!data.active && (
                 <View style={styles.pausedPill}>
