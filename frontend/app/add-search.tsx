@@ -33,7 +33,8 @@ import SearchingOverlay from "../src/components/wizard/SearchingOverlay";
 import { useCredits } from "../src/providers/CreditsProvider";
 import { usePendingSearch } from "../src/providers/PendingSearchProvider";
 import { useHaptics } from "../src/providers/HapticsProvider";
-import { Check, PlaneTakeoff, PlaneLanding, Calendar, CornerDownLeft, ChevronRight, ChevronUp, ChevronDown, ArrowRight } from "lucide-react-native";
+import { useAuth } from "../src/providers/AuthProvider";
+import { Check, PlaneTakeoff, PlaneLanding, Calendar, Moon, CornerDownLeft, ChevronRight, ChevronUp, ChevronDown, ArrowRight } from "lucide-react-native";
 
 // Enable LayoutAnimation on Android
 if (
@@ -114,15 +115,6 @@ function computeSearchCredits(combos: number): number {
   return 80;
 }
 
-function computeTrackingCredits(combos: number): number {
-  if (combos <= 10) return 25;
-  if (combos <= 20) return 35;
-  if (combos <= 50) return 55;
-  if (combos <= 100) return 85;
-  if (combos <= 150) return 120;
-  return 175;
-}
-
 const COMBO_HARD_CAP = 200;
 
 const DURATION_OPTIONS = [
@@ -195,38 +187,40 @@ function AnimatedSection({ expanded, children }: AnimatedSectionProps) {
 // Step indicator circle
 // ---------------------------------------------------------------------------
 
-interface StepCircleProps {
-  number: number;
+const SECTION_ICONS: Record<SectionId, React.ComponentType<{ size: number; color: string; strokeWidth: number }>> = {
+  route: PlaneTakeoff,
+  dates: Calendar,
+  nights: Moon,
+};
+
+interface StepIndicatorProps {
+  section: SectionId;
   active: boolean;
   done: boolean;
 }
 
-function StepCircle({ number, active, done }: StepCircleProps) {
+function StepIndicator({ section, active, done }: StepIndicatorProps) {
+  const Icon = SECTION_ICONS[section];
+
   if (done) {
     return (
-      <LinearGradient
-        colors={["#60A5FA", "#3B82F6"]}
-        style={styles.stepCircle}
-      >
-        <Check size={16} color="#FFFFFF" strokeWidth={3} />
-      </LinearGradient>
+      <View style={styles.stepIndicator}>
+        <Check size={18} color="#3B82F6" strokeWidth={2.5} />
+      </View>
     );
   }
 
   if (active) {
     return (
-      <LinearGradient
-        colors={["#3B82F6", "#2563EB"]}
-        style={styles.stepCircle}
-      >
-        <Text style={styles.stepCircleNum}>{number}</Text>
-      </LinearGradient>
+      <View style={[styles.stepIndicator, styles.stepIndicatorActive]}>
+        <Icon size={18} color="#2563EB" strokeWidth={2} />
+      </View>
     );
   }
 
   return (
-    <View style={[styles.stepCircle, styles.stepCircleInactive]}>
-      <Text style={styles.stepCircleNumInactive}>{number}</Text>
+    <View style={styles.stepIndicator}>
+      <Icon size={18} color="#94A3B8" strokeWidth={1.5} />
     </View>
   );
 }
@@ -277,6 +271,7 @@ export default function AddSearchScreen() {
   const router = useRouter();
   const haptics = useHaptics();
   const { balance } = useCredits();
+  const { hasUsedFreeSearch, markFreeSearchUsed } = useAuth();
   const { startSearch, pending, isSearching, dismiss } = usePendingSearch();
   const [step, setStep] = useState<WizardStep>("form");
   const [formData, setFormData] = useState<WizardFormData>({
@@ -318,13 +313,13 @@ export default function AddSearchScreen() {
       combos = Math.floor(diffMs / 86_400_000) + 1;
     }
     const searchCost = computeSearchCredits(combos);
-    const trackingCost = computeTrackingCredits(combos);
+    const isFreeSearch = !hasUsedFreeSearch;
     return {
       count: combos,
       searchCost,
-      trackingCost,
       overLimit: combos > COMBO_HARD_CAP,
-      canAfford: balance != null && balance >= searchCost,
+      canAfford: isFreeSearch || (balance != null && balance >= searchCost),
+      isFreeSearch,
     };
   }, [
     formData.tripType,
@@ -333,6 +328,7 @@ export default function AddSearchScreen() {
     formData.minNights,
     formData.maxNights,
     balance,
+    hasUsedFreeSearch,
   ]);
 
   // Date picker state
@@ -427,11 +423,6 @@ export default function AddSearchScreen() {
   const isSectionDone = (id: SectionId) => completedSections.has(id);
   const isSectionActive = (id: SectionId) => activeSection === id;
 
-  // Determine step number for display (strips nights when oneway)
-  const getSectionNumber = (id: SectionId) => {
-    return sectionOrder.indexOf(id) + 1;
-  };
-
   // ---------------------------------------------------------------------------
   // Route section — airport selection
   // ---------------------------------------------------------------------------
@@ -472,10 +463,6 @@ export default function AddSearchScreen() {
     formData.minNights === formData.maxNights
       ? `${formData.minNights} nights`
       : `${formData.minNights} – ${formData.maxNights} nights`;
-
-  const handleNightsNext = useCallback(() => {
-    completeSection("nights");
-  }, [completeSection]);
 
   // ---------------------------------------------------------------------------
   // Date picker
@@ -661,6 +648,7 @@ export default function AddSearchScreen() {
       pending?.status === "completed" &&
       pending.searchId
     ) {
+      if (comboInfo.isFreeSearch) markFreeSearchUsed();
       dismiss();
       router.replace(`/search/${pending.searchId}`);
     }
@@ -768,7 +756,7 @@ export default function AddSearchScreen() {
                 STEP 1: Route
             ────────────────────────────────────────────── */}
             <WizardSection
-              number={getSectionNumber("route")}
+              section="route"
               active={isSectionActive("route")}
               done={isSectionDone("route")}
               title="Where to?"
@@ -878,7 +866,7 @@ export default function AddSearchScreen() {
                 STEP 2: Dates
             ────────────────────────────────────────────── */}
             <WizardSection
-              number={getSectionNumber("dates")}
+              section="dates"
               active={isSectionActive("dates")}
               done={isSectionDone("dates")}
               title="When can you fly?"
@@ -961,18 +949,20 @@ export default function AddSearchScreen() {
                 </View>
               )}
 
-              <View style={styles.sectionNextWrap}>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.sectionNextBtn,
-                    pressed && styles.sectionNextBtnPressed,
-                  ]}
-                  onPress={handleDatesNext}
-                >
-                  <Text style={styles.sectionNextBtnText}>Continue</Text>
-                  <ArrowRight size={16} color="#FFFFFF" strokeWidth={2.5} />
-                </Pressable>
-              </View>
+              {formData.tripType === "roundtrip" && (
+                <View style={styles.sectionNextWrap}>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.sectionNextBtn,
+                      pressed && styles.sectionNextBtnPressed,
+                    ]}
+                    onPress={handleDatesNext}
+                  >
+                    <Text style={styles.sectionNextBtnText}>Continue</Text>
+                    <ArrowRight size={16} color="#FFFFFF" strokeWidth={2.5} />
+                  </Pressable>
+                </View>
+              )}
             </WizardSection>
 
             {/* ──────────────────────────────────────────────
@@ -980,7 +970,7 @@ export default function AddSearchScreen() {
             ────────────────────────────────────────────── */}
             {formData.tripType === "roundtrip" && (
               <WizardSection
-                number={getSectionNumber("nights")}
+                section="nights"
                 active={isSectionActive("nights")}
                 done={isSectionDone("nights")}
                 title="Trip length"
@@ -1026,19 +1016,6 @@ export default function AddSearchScreen() {
                       thumbTintColor="#2563EB"
                     />
                   </View>
-                </View>
-
-                <View style={styles.sectionNextWrap}>
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.sectionNextBtn,
-                      pressed && styles.sectionNextBtnPressed,
-                    ]}
-                    onPress={handleNightsNext}
-                  >
-                    <Text style={styles.sectionNextBtnText}>Continue</Text>
-                    <ArrowRight size={16} color="#FFFFFF" strokeWidth={2.5} />
-                  </Pressable>
                 </View>
               </WizardSection>
             )}
@@ -1236,54 +1213,26 @@ export default function AddSearchScreen() {
               CREDIT COST + ERROR
           ================================================================ */}
           {comboInfo.count > 0 && (
-            <View
-              style={[
-                styles.creditSummaryCard,
-                comboInfo.overLimit && styles.creditSummaryCardOver,
-              ]}
-            >
+            <View style={styles.creditLine}>
               {comboInfo.overLimit ? (
-                <Text style={styles.creditSummaryOver}>
+                <Text style={styles.creditLineOver}>
                   {comboInfo.count} combinations exceeds the maximum of{" "}
                   {COMBO_HARD_CAP}. Please narrow your date range or nights.
                 </Text>
+              ) : comboInfo.isFreeSearch ? (
+                <Text style={styles.creditLineFree}>
+                  Free — your first search!
+                </Text>
               ) : (
                 <>
-                  <View style={styles.creditSummaryRow}>
-                    <View style={styles.creditSummaryItem}>
-                      <Text style={styles.creditSummaryLabel}>
-                        Date combos
-                      </Text>
-                      <Text style={styles.creditSummaryValue}>
-                        {comboInfo.count}
-                      </Text>
-                    </View>
-                    <View style={styles.creditSummaryDivider} />
-                    <View style={styles.creditSummaryItem}>
-                      <Text style={styles.creditSummaryLabel}>
-                        Search cost
-                      </Text>
-                      <Text style={styles.creditSummaryValue}>
-                        {comboInfo.searchCost} cr
-                      </Text>
-                    </View>
-                    <View style={styles.creditSummaryDivider} />
-                    <View style={styles.creditSummaryItem}>
-                      <Text style={styles.creditSummaryLabel}>
-                        Track (14d)
-                      </Text>
-                      <Text style={styles.creditSummaryValue}>
-                        {comboInfo.trackingCost} cr
-                      </Text>
-                    </View>
-                  </View>
+                  <Text style={styles.creditLineText}>
+                    Search: {comboInfo.searchCost} credits
+                  </Text>
                   {!comboInfo.canAfford && (
-                    <View style={styles.insufficientBanner}>
-                      <Text style={styles.insufficientBannerText}>
-                        Not enough credits — you have {balance ?? 0}, need{" "}
-                        {comboInfo.searchCost}
-                      </Text>
-                    </View>
+                    <Text style={styles.creditLineInsufficient}>
+                      Not enough credits — you have {balance ?? 0}, need{" "}
+                      {comboInfo.searchCost}
+                    </Text>
                   )}
                 </>
               )}
@@ -1382,7 +1331,7 @@ export default function AddSearchScreen() {
 // ---------------------------------------------------------------------------
 
 interface WizardSectionProps {
-  number: number;
+  section: SectionId;
   active: boolean;
   done: boolean;
   title: string;
@@ -1393,7 +1342,7 @@ interface WizardSectionProps {
 }
 
 function WizardSection({
-  number,
+  section,
   active,
   done,
   title,
@@ -1404,9 +1353,9 @@ function WizardSection({
 }: WizardSectionProps) {
   return (
     <View style={wizStyles.container}>
-      {/* Left column: circle + connector */}
+      {/* Left column: icon + connector */}
       <View style={wizStyles.leftCol}>
-        <StepCircle number={number} active={active} done={done} />
+        <StepIndicator section={section} active={active} done={done} />
         {!isLastSection && (
           <View
             style={[
@@ -1470,19 +1419,19 @@ const wizStyles = StyleSheet.create({
     marginBottom: 4,
   },
   leftCol: {
-    width: 40,
+    width: 32,
     alignItems: "center",
   },
   connector: {
     flex: 1,
-    width: 2,
+    width: 1.5,
     backgroundColor: "#E2E8F0",
     marginTop: 6,
     marginBottom: 0,
     minHeight: 24,
   },
   connectorActive: {
-    backgroundColor: "#BFDBFE",
+    backgroundColor: "#93C5FD",
   },
   rightCol: {
     flex: 1,
@@ -1617,42 +1566,30 @@ const styles = StyleSheet.create({
   },
   connectorLine: {
     position: "absolute",
-    left: 19,
-    top: 34,
-    bottom: 34,
-    width: 2,
+    left: 15,
+    top: 32,
+    bottom: 32,
+    width: 1.5,
     backgroundColor: "#E2E8F0",
     zIndex: 0,
   },
 
-  // Step circle
-  stepCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  // Step indicator (floating icon)
+  stepIndicator: {
+    width: 32,
+    height: 32,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1,
+    backgroundColor: "#F0F6FF",
+    borderRadius: 16,
   },
-  stepCircleInactive: {
-    backgroundColor: "#F1F5F9",
-    borderWidth: 2,
-    borderColor: "#E2E8F0",
-  },
-  stepCircleNum: {
-    fontFamily: "Outfit_700Bold",
-    fontSize: 16,
-    color: "#FFFFFF",
-  },
-  stepCircleNumInactive: {
-    fontFamily: "Outfit_600SemiBold",
-    fontSize: 15,
-    color: "#94A3B8",
-  },
-  stepCircleCheck: {
-    fontFamily: "Outfit_700Bold",
-    fontSize: 16,
-    color: "#FFFFFF",
+  stepIndicatorActive: {
+    shadowColor: "#2563EB",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4,
   },
 
   // Airport rows
@@ -2012,64 +1949,31 @@ const styles = StyleSheet.create({
   },
 
   // Credit summary card
-  creditSummaryCard: {
-    backgroundColor: "#EFF6FF",
-    borderRadius: 14,
-    padding: 16,
+  creditLine: {
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#BFDBFE",
+    paddingHorizontal: 4,
   },
-  creditSummaryCardOver: {
-    backgroundColor: "#FEF2F2",
-    borderColor: "#FECACA",
+  creditLineFree: {
+    fontFamily: "Outfit_600SemiBold",
+    fontSize: 14,
+    color: "#22C55E",
   },
-  creditSummaryRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  creditSummaryItem: {
-    flex: 1,
-    alignItems: "center",
-  },
-  creditSummaryLabel: {
+  creditLineText: {
     fontFamily: "Outfit_500Medium",
-    fontSize: 11,
+    fontSize: 14,
     color: "#64748B",
-    marginBottom: 4,
-    textAlign: "center",
   },
-  creditSummaryValue: {
-    fontFamily: "Outfit_700Bold",
-    fontSize: 16,
-    color: "#0F172A",
-    textAlign: "center",
-  },
-  creditSummaryDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: "#BFDBFE",
-    marginHorizontal: 8,
-  },
-  creditSummaryOver: {
+  creditLineOver: {
     fontFamily: "Outfit_500Medium",
     fontSize: 13,
     color: "#DC2626",
-    textAlign: "center",
     lineHeight: 18,
   },
-  insufficientBanner: {
-    marginTop: 12,
-    backgroundColor: "#FEF2F2",
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  insufficientBannerText: {
+  creditLineInsufficient: {
     fontFamily: "Outfit_500Medium",
     fontSize: 12,
     color: "#DC2626",
-    textAlign: "center",
+    marginTop: 4,
   },
 
   // Error

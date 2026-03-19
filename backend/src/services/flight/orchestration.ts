@@ -1,7 +1,7 @@
 import { SearchFilters, ApiFilters, RoundTripRawOption } from "../../types/search";
 import {
   SERP_CONCURRENCY, SENTINEL_CONCURRENCY,
-  TOP_HYDRATE_COUNT, TOP_RESULTS_LIMIT,
+  TOP_HYDRATE_COUNT, TOP_RESULTS_LIMIT, RAW_LEGS_POOL_SIZE,
 } from "../../config/constants";
 import { FlightLeg, FlightCombo, SearchParams, OneWaySearchParams, OneWayResult } from "./types";
 import { addDays, generateDates, sampleDates } from "./dateUtils";
@@ -70,23 +70,27 @@ export async function fetchAndReduceCombos(
   );
 
   const rawRoundTrips = allResults.flat();
-  const top10 = filterAndSortRawOptions(rawRoundTrips, undefined, TOP_RESULTS_LIMIT);
+  // Store a larger pool in rawLegs so airline filtering has more options to draw from
+  const rawPool = filterAndSortRawOptions(rawRoundTrips, undefined, RAW_LEGS_POOL_SIZE);
+  const top10 = rawPool.slice(0, TOP_RESULTS_LIMIT);
 
   const toHydrate = top10.slice(0, TOP_HYDRATE_COUNT);
-  const unhydrated = top10.slice(TOP_HYDRATE_COUNT);
+  // Filter unhydrated options by outbound airline so excluded airlines don't leak into latestResults
+  const unhydrated = filterAndSortRawOptions(top10.slice(TOP_HYDRATE_COUNT), params.filters);
 
   const hydratedCombos = await buildCombosFromRawOptions(toHydrate, origin, destination, params.apiFilters, tracker);
 
+  // Extract available airlines from the full pool so filter chips show all options
+  const poolLegs = rawPool.map((o) => o.outbound);
   const hydratedLegs = hydratedCombos.flatMap((c) => [c.outbound, c.return]);
-  const unhydratedLegs = unhydrated.map((o) => o.outbound);
-  const allLegs = [...hydratedLegs, ...unhydratedLegs];
+  const allLegs = [...hydratedLegs, ...poolLegs];
   const availableAirlines = extractAirlines(allLegs);
   const airlineLogos = extractAirlineLogos(allLegs);
 
   const combos = filterCombosByAirline(hydratedCombos, params.filters, TOP_HYDRATE_COUNT);
 
   tracker.printSummary("FULL SEARCH (fetchAndReduceCombos)");
-  return { combos, unhydratedOptions: unhydrated, availableAirlines, airlineLogos, allRawOptions: top10 };
+  return { combos, unhydratedOptions: unhydrated, availableAirlines, airlineLogos, allRawOptions: rawPool };
 }
 
 /** Build FlightCombo[] from raw options by fetching return leg details. */

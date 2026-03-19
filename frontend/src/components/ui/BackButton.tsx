@@ -14,7 +14,16 @@ export default function BackButton({ onPress }: BackButtonProps) {
   return (
     <Pressable
       style={({ pressed }) => [styles.wrapper, pressed && styles.pressed]}
-      onPress={() => { haptics.light(); (onPress ?? (() => router.back()))(); }}
+      onPress={() => {
+        haptics.light();
+        if (onPress) {
+          onPress();
+        } else if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace("/");
+        }
+      }}
       hitSlop={8}
     >
       <BlurView intensity={40} tint="light" style={styles.blur}>

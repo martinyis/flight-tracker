@@ -8,7 +8,7 @@ import {
   countCombos, searchByParams, searchOneWayByParams,
 } from "../flightService";
 import { computeNextCheckAt } from "../../workers/priceCheckWorker";
-import { computeSearchCredits, deductCredits, refundCredits } from "../creditService";
+import { computeSearchCredits, computeTrackingCredits, deductCredits, refundCredits } from "../creditService";
 import { BadRequestError, NotFoundError, ConflictError } from "../../errors/AppError";
 import { COMBO_HARD_CAP, DEDUP_WINDOW_MS } from "../../config/constants";
 import {
@@ -16,6 +16,29 @@ import {
   jsonAvailableAirlines, jsonAirlineLogos, jsonPriceHistory,
 } from "../../types/prismaJson";
 import { parseId, validateApiFilters, appendPriceHistory, computeLogosFromResults } from "./helpers";
+
+// ---------------------------------------------------------------------------
+// Tracking cost helper
+// ---------------------------------------------------------------------------
+
+export function buildTrackingCosts(comboCount: number, dateFrom: string, freeTrackingAvailable = false) {
+  const daysUntilDeparture = Math.max(
+    1,
+    Math.ceil((new Date(dateFrom + "T00:00:00Z").getTime() - Date.now()) / 86_400_000)
+  );
+
+  // Don't return tracking costs for past departures
+  if (new Date(dateFrom + "T00:00:00Z").getTime() < Date.now()) return null;
+
+  return {
+    7: freeTrackingAvailable ? 0 : computeTrackingCredits(comboCount, Math.min(7, daysUntilDeparture)),
+    14: computeTrackingCredits(comboCount, Math.min(14, daysUntilDeparture)),
+    30: computeTrackingCredits(comboCount, Math.min(30, daysUntilDeparture)),
+    untilDeparture: computeTrackingCredits(comboCount, daysUntilDeparture),
+    daysUntilDeparture,
+    freeTrackingAvailable,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Create
@@ -32,10 +55,19 @@ interface CreateSearchInput {
   apiFilters?: ApiFilters;
 }
 
+interface TrackingCosts {
+  7: number;
+  14: number;
+  30: number;
+  untilDeparture: number;
+  daysUntilDeparture: number;
+  freeTrackingAvailable: boolean;
+}
+
 export async function createSavedSearch(
   userId: string,
   data: CreateSearchInput
-): Promise<{ search: TypedSavedSearch; creditsCharged: number; remainingBalance: number; resultsError?: string }> {
+): Promise<{ search: TypedSavedSearch; trackingCosts: TrackingCosts | null; creditsCharged: number; remainingBalance: number; resultsError?: string }> {
   const { tripType, origin, destination, dateFrom, dateTo, minNights, maxNights, apiFilters } = data;
 
   if (!tripType || !origin || !destination || !dateFrom || !dateTo) {
@@ -103,10 +135,25 @@ export async function createSavedSearch(
     );
   }
 
-  // Deduct credits
-  const searchCreditCost = computeSearchCredits(comboCount);
+  // Check if this is the user's first free search
+  const currentUser = await prisma.user.findUniqueOrThrow({
+    where: { id: uid },
+    select: { hasUsedFreeSearch: true, hasUsedFreeTracking: true, creditBalance: true },
+  });
+  const isFreeSearch = !currentUser.hasUsedFreeSearch;
+  const freeTrackingAvailable = !currentUser.hasUsedFreeTracking;
+
   const routeLabel = `Search: ${origin.toUpperCase()}-${destination.toUpperCase()}`;
-  let remainingBalance = await deductCredits(uid, searchCreditCost, "search", null, routeLabel);
+  let searchCreditCost: number;
+  let remainingBalance: number;
+
+  if (isFreeSearch) {
+    searchCreditCost = 0;
+    remainingBalance = currentUser.creditBalance;
+  } else {
+    searchCreditCost = computeSearchCredits(comboCount);
+    remainingBalance = await deductCredits(uid, searchCreditCost, "search", null, routeLabel);
+  }
 
   // Create the search record
   let search = await prisma.savedSearch.create({
@@ -183,15 +230,25 @@ export async function createSavedSearch(
     }
   } catch (err) {
     // SerpAPI failed after credits were deducted — refund and clean up
-    await refundCredits(uid, searchCreditCost, search.id, `Refund: ${routeLabel} (search failed)`);
+    if (!isFreeSearch) {
+      await refundCredits(uid, searchCreditCost, search.id, `Refund: ${routeLabel} (search failed)`);
+    }
     await prisma.savedSearch.delete({ where: { id: search.id } });
     throw err;
+  }
+
+  // Mark free search as used (only after successful SerpAPI call)
+  if (isFreeSearch) {
+    await prisma.user.update({
+      where: { id: uid },
+      data: { hasUsedFreeSearch: true },
+    });
   }
 
   // Refund credits if the search returned 5 or fewer results
   const resultCount = readLatestResults(search.latestResults).length;
   let creditsCharged = searchCreditCost;
-  if (resultCount <= 5) {
+  if (!isFreeSearch && resultCount <= 5) {
     remainingBalance = await refundCredits(uid, searchCreditCost, search.id,
       `Refund: ${routeLabel} (only ${resultCount} result${resultCount === 1 ? "" : "s"} found)`);
     creditsCharged = 0;
@@ -203,6 +260,7 @@ export async function createSavedSearch(
 
   return {
     search: search as unknown as TypedSavedSearch,
+    trackingCosts: buildTrackingCosts(comboCount, search.dateFrom, freeTrackingAvailable),
     creditsCharged,
     remainingBalance,
     resultsError,
@@ -271,6 +329,13 @@ export async function getSearchById(id: string, userId: string) {
   });
   if (!search) throw new NotFoundError("Search not found");
 
+  // Check if user still has free tracking available
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: uid },
+    select: { hasUsedFreeTracking: true },
+  });
+  const freeTrackingAvailable = !user.hasUsedFreeTracking;
+
   // Backfill airlineLogos from latestResults if column is empty (pre-migration data)
   const logos = readAirlineLogos(search.airlineLogos);
   if (Object.keys(logos).length === 0) {
@@ -283,11 +348,13 @@ export async function getSearchById(id: string, userId: string) {
         where: { id: search.id },
         data: { airlineLogos: jsonAirlineLogos(computed) },
       });
-      return { ...search, airlineLogos: jsonAirlineLogos(computed) };
+      const trackingCosts = buildTrackingCosts(search.comboCount ?? 1, search.dateFrom, freeTrackingAvailable);
+      return { ...search, airlineLogos: jsonAirlineLogos(computed), trackingCosts };
     }
   }
 
-  return search;
+  const trackingCosts = buildTrackingCosts(search.comboCount ?? 1, search.dateFrom, freeTrackingAvailable);
+  return { ...search, trackingCosts };
 }
 
 // ---------------------------------------------------------------------------

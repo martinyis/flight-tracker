@@ -14,9 +14,13 @@ interface AuthState {
   token: string | null;
   userName: string | null;
   isLoading: boolean;
-  loginWithTokens: (accessToken: string, refreshToken: string) => Promise<void>;
+  hasUsedFreeSearch: boolean;
+  isNewUser: boolean;
+  loginWithTokens: (accessToken: string, refreshToken: string, isNewUser?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   deleteAccount: () => Promise<void>;
+  markFreeSearchUsed: () => void;
+  clearOnboarding: () => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -25,13 +29,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasUsedFreeSearch, setHasUsedFreeSearch] = useState(true); // default true (safe)
+  const [isNewUser, setIsNewUser] = useState(false);
 
-  const fetchUserName = async () => {
+  const fetchUserProfile = async () => {
     try {
       const res = await api.get("/auth/me");
       setUserName(res.data.firstName || null);
+      setHasUsedFreeSearch(res.data.hasUsedFreeSearch ?? true);
     } catch {
-      // ignore — name is optional
+      // ignore — profile fetch is best-effort
     }
   };
 
@@ -52,12 +59,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
+        // Check if onboarding was interrupted
+        const onboardingPending = await SecureStore.getItemAsync("onboarding_pending");
+        if (onboardingPending === "true") {
+          setIsNewUser(true);
+        }
+
         const storedAccess = await SecureStore.getItemAsync("auth_token");
         const storedRefresh = await SecureStore.getItemAsync("refresh_token");
 
         if (storedAccess) {
           setToken(storedAccess);
-          fetchUserName();
+          fetchUserProfile();
           registerPushToken();
         } else if (storedRefresh) {
           // Access token expired/missing but refresh token exists — try to refresh
@@ -70,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await SecureStore.setItemAsync("auth_token", data.accessToken);
             await SecureStore.setItemAsync("refresh_token", data.refreshToken);
             setToken(data.accessToken);
-            fetchUserName();
+            fetchUserProfile();
             registerPushToken();
           } catch {
             await SecureStore.deleteItemAsync("refresh_token");
@@ -82,12 +95,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  const loginWithTokens = async (accessToken: string, refreshToken: string) => {
+  const loginWithTokens = async (accessToken: string, refreshToken: string, newUser?: boolean) => {
     await SecureStore.setItemAsync("auth_token", accessToken);
     await SecureStore.setItemAsync("refresh_token", refreshToken);
+    if (newUser) {
+      await SecureStore.setItemAsync("onboarding_pending", "true");
+      setIsNewUser(true);
+    }
     setToken(accessToken);
-    fetchUserName();
+    fetchUserProfile();
     registerPushToken();
+  };
+
+  const markFreeSearchUsed = () => {
+    setHasUsedFreeSearch(true);
+  };
+
+  const clearOnboarding = () => {
+    setIsNewUser(false);
+    SecureStore.deleteItemAsync("onboarding_pending");
   };
 
   const logout = async () => {
@@ -101,20 +127,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     await SecureStore.deleteItemAsync("auth_token");
     await SecureStore.deleteItemAsync("refresh_token");
+    await SecureStore.deleteItemAsync("onboarding_pending");
     setToken(null);
     setUserName(null);
+    setIsNewUser(false);
+    setHasUsedFreeSearch(true);
   };
 
   const deleteAccount = async () => {
     await api.delete("/auth/me");
     await SecureStore.deleteItemAsync("auth_token");
     await SecureStore.deleteItemAsync("refresh_token");
+    await SecureStore.deleteItemAsync("onboarding_pending");
     setToken(null);
     setUserName(null);
+    setIsNewUser(false);
+    setHasUsedFreeSearch(true);
   };
 
   return (
-    <AuthContext.Provider value={{ token, userName, isLoading, loginWithTokens, logout, deleteAccount }}>
+    <AuthContext.Provider value={{
+      token, userName, isLoading,
+      hasUsedFreeSearch, isNewUser,
+      loginWithTokens, logout, deleteAccount,
+      markFreeSearchUsed, clearOnboarding,
+    }}>
       {children}
     </AuthContext.Provider>
   );

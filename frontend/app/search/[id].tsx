@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  BottomSheetModal,
+  BottomSheetView,
+  BottomSheetBackdrop,
+} from "@gorhom/bottom-sheet";
+import {
   View,
   Text,
   Modal,
@@ -98,6 +103,14 @@ interface SavedSearch {
   trackingActive?: boolean;
   trackingPaid?: boolean;
   comboCount?: number;
+  trackingCosts?: {
+    7: number;
+    14: number;
+    30: number;
+    untilDeparture: number;
+    daysUntilDeparture: number;
+    freeTrackingAvailable?: boolean;
+  } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -399,25 +412,7 @@ function computeSearchCredits(comboCount: number): number {
   return 80;
 }
 
-const TRACKING_TIERS: [number, number][] = [
-  [10, 50],
-  [20, 55],
-  [50, 70],
-  [100, 95],
-  [150, 125],
-  [200, 160],
-];
-
-function computeTrackingCredits(comboCount: number, trackingDays: number): number {
-  let base14 = TRACKING_TIERS[TRACKING_TIERS.length - 1][1];
-  for (const [maxCombos, credits] of TRACKING_TIERS) {
-    if (comboCount <= maxCombos) {
-      base14 = credits;
-      break;
-    }
-  }
-  return Math.ceil(base14 * (trackingDays / 14));
-}
+// Tracking credits are now returned by the backend in search.trackingCosts
 
 // ---------------------------------------------------------------------------
 // Sticky header constants
@@ -462,10 +457,22 @@ export default function SearchDetailScreen() {
   // -- Airline filter expansion --
   const [airlinesExpanded, setAirlinesExpanded] = useState(false);
 
-  // -- Inline tracking activation --
-  const [trackingExpanded, setTrackingExpanded] = useState(false);
+  // -- Tracking bottom sheet --
+  const trackingSheetRef = useRef<BottomSheetModal>(null);
   const [selectedTrackingDays, setSelectedTrackingDays] = useState(14);
   const [activatingTracking, setActivatingTracking] = useState(false);
+
+  const renderTrackingBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+        opacity={0.4}
+      />
+    ),
+    []
+  );
 
   // -- Re-search with filters modal --
   const [reSearchModalVisible, setReSearchModalVisible] = useState(false);
@@ -651,8 +658,7 @@ export default function SearchDetailScreen() {
             {
               text: "Activate",
               onPress: () => {
-                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                setTrackingExpanded(true);
+                trackingSheetRef.current?.present();
               },
             },
           ]
@@ -732,11 +738,10 @@ export default function SearchDetailScreen() {
         trackingDays: days,
       });
       haptics.success();
+      trackingSheetRef.current?.dismiss();
       setSearch((prev) =>
         prev ? { ...prev, trackingActive: true, trackingPaid: true, active: true } : prev
       );
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setTrackingExpanded(false);
     } catch (err: any) {
       haptics.error();
       Alert.alert("Error", err.response?.data?.error ?? "Failed to activate tracking");
@@ -1032,22 +1037,12 @@ export default function SearchDetailScreen() {
               </View>
             </Pressable>
           ) : isUnpaid ? (
-            <Pressable
-              onPress={() => {
-                haptics.light();
-                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                setTrackingExpanded((prev) => !prev);
-              }}
-              style={({ pressed }) => pressed && styles.actionLinePressed}
-            >
-              <View style={styles.actionLineRow}>
-                <RefreshCycleIcon size={16} color="#F59E0B" />
-                <Text style={styles.actionLineAmber}>
-                  Watch for better deals
-                </Text>
-                <ArrowIcon size={10} color="#F59E0B" />
-              </View>
-            </Pressable>
+            <View style={styles.actionLineRow}>
+              <RefreshCycleIcon size={14} color="#94A3B8" />
+              <Text style={styles.actionLineMuted}>
+                Price tracking available
+              </Text>
+            </View>
           ) : (
             <Pressable
               onPress={handleRefresh}
@@ -1063,112 +1058,6 @@ export default function SearchDetailScreen() {
           )}
         </View>
 
-        {/* ---- Compact tracking duration strip ---- */}
-        {trackingExpanded && !search.trackingActive && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.trackingStrip}
-            contentContainerStyle={styles.trackingStripContent}
-          >
-            {TRACKING_PRESETS.map((preset) => {
-              const credits = computeTrackingCredits(
-                search.comboCount ?? search.latestResults.length,
-                preset.days
-              );
-              const isSelected = selectedTrackingDays === preset.days;
-              return (
-                <Pressable
-                  key={preset.days}
-                  onPress={() => { haptics.light(); setSelectedTrackingDays(preset.days); }}
-                  style={[
-                    styles.trackingChip,
-                    isSelected && styles.trackingChipActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.trackingChipText,
-                      isSelected && styles.trackingChipTextActive,
-                    ]}
-                  >
-                    {preset.label}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.trackingChipCredits,
-                      isSelected && styles.trackingChipCreditsActive,
-                    ]}
-                  >
-                    {credits} cr
-                  </Text>
-                </Pressable>
-              );
-            })}
-            {/* Until dep chip */}
-            {(() => {
-              const depCredits = computeTrackingCredits(
-                search.comboCount ?? search.latestResults.length,
-                daysUntilDeparture
-              );
-              const isSelected = selectedTrackingDays === 0;
-              return (
-                <Pressable
-                  onPress={() => { haptics.light(); setSelectedTrackingDays(0); }}
-                  style={[
-                    styles.trackingChip,
-                    isSelected && styles.trackingChipActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.trackingChipText,
-                      isSelected && styles.trackingChipTextActive,
-                    ]}
-                  >
-                    Until dep ({daysUntilDeparture}d)
-                  </Text>
-                  <Text
-                    style={[
-                      styles.trackingChipCredits,
-                      isSelected && styles.trackingChipCreditsActive,
-                    ]}
-                  >
-                    {depCredits} cr
-                  </Text>
-                </Pressable>
-              );
-            })()}
-            {/* Inline Track button */}
-            <Pressable
-              onPress={() => handleActivateTracking(selectedTrackingDays)}
-              disabled={activatingTracking}
-              style={({ pressed }) => [
-                styles.trackBtn,
-                pressed && styles.trackBtnPressed,
-                activatingTracking && styles.trackBtnDisabled,
-              ]}
-            >
-              {activatingTracking ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Text style={styles.trackBtnText}>Watch</Text>
-              )}
-            </Pressable>
-            {/* Cancel */}
-            <Pressable
-              onPress={() => {
-                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                setTrackingExpanded(false);
-              }}
-              hitSlop={8}
-              style={styles.trackingDismissWrap}
-            >
-              <Text style={styles.trackingDismiss}>Cancel</Text>
-            </Pressable>
-          </ScrollView>
-        )}
-
         {/* Bottom spacer before results */}
         <View style={styles.heroSpacer} />
       </View>{/* end hero measurement zone */}
@@ -1177,7 +1066,7 @@ export default function SearchDetailScreen() {
       <View style={styles.sectionDivider} />
     </>
     );
-  }, [search, refreshing, onHeroLayout, cooldownLeft, refreshPhase, trackingExpanded, selectedTrackingDays, activatingTracking, daysUntilDeparture, balance]);
+  }, [search, refreshing, onHeroLayout, cooldownLeft, refreshPhase, balance]);
 
   // Native-driven scroll handler for 60fps animation
   const onScroll = useMemo(
@@ -1737,6 +1626,140 @@ export default function SearchDetailScreen() {
       {stickyHeaderOverlay}
       {overflowMenu}
       {reSearchModal}
+
+      {/* ---- Sticky bottom tracking bar ---- */}
+      {search && !search.trackingActive && search.lastCheckedAt && search.latestResults.length > 0 && (
+        <View style={[styles.bottomBarWrap, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          <Pressable
+            onPress={() => {
+              haptics.light();
+              trackingSheetRef.current?.present();
+            }}
+            style={({ pressed }) => [
+              styles.bottomBar,
+              pressed && styles.bottomBarPressed,
+            ]}
+          >
+            <View style={styles.bottomBarIcon}>
+              <RefreshCycleIcon size={20} color="#2F9CF4" />
+            </View>
+            <View style={styles.bottomBarTextWrap}>
+              <Text style={styles.bottomBarTitle}>Watch for better deals</Text>
+              <Text style={styles.bottomBarSub}>
+                We'll check every 4 hrs{search.trackingCosts ? (
+                  search.trackingCosts.freeTrackingAvailable
+                    ? "  ·  First week free"
+                    : `  ·  from ${Math.min(search.trackingCosts[7], search.trackingCosts[14], search.trackingCosts[30])} cr`
+                ) : ""}
+              </Text>
+            </View>
+            <ArrowIcon size={10} color="#2F9CF4" />
+          </Pressable>
+        </View>
+      )}
+
+      {/* ---- Tracking duration bottom sheet ---- */}
+      {search && (
+        <BottomSheetModal
+          ref={trackingSheetRef}
+          enableDynamicSizing
+          enablePanDownToClose
+          backdropComponent={renderTrackingBackdrop}
+          handleIndicatorStyle={trackingSheetStyles.handle}
+          backgroundStyle={trackingSheetStyles.background}
+          style={trackingSheetStyles.sheet}
+        >
+          <BottomSheetView style={[trackingSheetStyles.content, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+            <View style={trackingSheetStyles.headerRow}>
+              <Text style={trackingSheetStyles.title}>Watch for better deals</Text>
+              <Pressable
+                onPress={() => trackingSheetRef.current?.dismiss()}
+                hitSlop={12}
+                style={({ pressed }) => [
+                  trackingSheetStyles.closeBtn,
+                  pressed && { opacity: 0.6 },
+                ]}
+              >
+                <View style={trackingSheetStyles.closeX}>
+                  <View style={[trackingSheetStyles.closeXLine, { transform: [{ rotate: "45deg" }] }]} />
+                  <View style={[trackingSheetStyles.closeXLine, { transform: [{ rotate: "-45deg" }] }]} />
+                </View>
+              </Pressable>
+            </View>
+            <Text style={trackingSheetStyles.subtitle}>
+              We'll scan prices every 4 hours and notify you when they drop.
+            </Text>
+
+            <View style={styles.trackingChipsRow}>
+              {TRACKING_PRESETS.map((preset) => {
+                const credits = search.trackingCosts?.[preset.days] ?? 0;
+                const isFree = preset.days === 7 && search.trackingCosts?.freeTrackingAvailable;
+                const isSelected = selectedTrackingDays === preset.days;
+                return (
+                  <Pressable
+                    key={preset.days}
+                    onPress={() => { haptics.light(); setSelectedTrackingDays(preset.days); }}
+                    style={[
+                      styles.trackingChip,
+                      isSelected && styles.trackingChipActive,
+                    ]}
+                  >
+                    <Text style={[styles.trackingChipText, isSelected && styles.trackingChipTextActive]}>
+                      {preset.label}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.trackingChipCredits,
+                        isSelected && styles.trackingChipCreditsActive,
+                        isFree && { color: "#34C759" },
+                      ]}
+                    >
+                      {isFree ? "Free" : `${credits} cr`}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+              {(() => {
+                const depCredits = search.trackingCosts?.untilDeparture ?? 0;
+                const isSelected = selectedTrackingDays === 0;
+                return (
+                  <Pressable
+                    onPress={() => { haptics.light(); setSelectedTrackingDays(0); }}
+                    style={[styles.trackingChip, isSelected && styles.trackingChipActive]}
+                  >
+                    <Text style={[styles.trackingChipText, isSelected && styles.trackingChipTextActive]}>
+                      Until dep ({daysUntilDeparture}d)
+                    </Text>
+                    <Text style={[styles.trackingChipCredits, isSelected && styles.trackingChipCreditsActive]}>
+                      {depCredits} cr
+                    </Text>
+                  </Pressable>
+                );
+              })()}
+            </View>
+
+            <Pressable
+              onPress={() => handleActivateTracking(selectedTrackingDays)}
+              disabled={activatingTracking}
+              style={({ pressed }) => [
+                trackingSheetStyles.watchBtn,
+                pressed && trackingSheetStyles.watchBtnPressed,
+                activatingTracking && { opacity: 0.6 },
+              ]}
+            >
+              {activatingTracking ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={trackingSheetStyles.watchBtnText}>
+                  {selectedTrackingDays === 7 && search.trackingCosts?.freeTrackingAvailable
+                    ? "Start watching  ·  Free"
+                    : `Start watching  ·  ${(search.trackingCosts as any)?.[selectedTrackingDays === 0 ? "untilDeparture" : selectedTrackingDays] ?? 0} cr`}
+                </Text>
+              )}
+            </Pressable>
+          </BottomSheetView>
+        </BottomSheetModal>
+      )}
     </View>
   );
 }
@@ -1846,7 +1869,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingBottom: 100,
   },
 
   // ---- Nav row ----
@@ -1998,17 +2021,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#CBD5E1",
   },
 
-  // ---- Compact tracking duration strip ----
+  // ---- Tracking duration picker ----
 
-  trackingStrip: {
-    marginTop: 4,
-    marginBottom: 0,
+  trackingPanel: {
+    marginTop: 8,
+    gap: 10,
   },
-  trackingStripContent: {
+  trackingChipsRow: {
     flexDirection: "row",
-    alignItems: "center",
+    flexWrap: "wrap",
     gap: 6,
-    paddingVertical: 4,
   },
   trackingChip: {
     alignItems: "center",
@@ -2016,11 +2038,12 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
     backgroundColor: "rgba(148, 163, 184, 0.08)",
+    borderWidth: 1,
+    borderColor: "transparent",
     gap: 1,
   },
   trackingChipActive: {
     backgroundColor: "rgba(47, 156, 244, 0.1)",
-    borderWidth: 1,
     borderColor: "rgba(47, 156, 244, 0.3)",
   },
   trackingChipText: {
@@ -2041,15 +2064,20 @@ const styles = StyleSheet.create({
   trackingChipCreditsActive: {
     color: "#2F9CF4",
   },
+  trackingActionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
   trackBtn: {
+    flex: 1,
     backgroundColor: "#2F9CF4",
     borderRadius: 20,
     paddingHorizontal: 14,
-    paddingVertical: 7,
-    minHeight: 34,
+    paddingVertical: 9,
+    minHeight: 36,
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: 2,
   },
   trackBtnPressed: {
     backgroundColor: "#1A7ED4",
@@ -2060,17 +2088,71 @@ const styles = StyleSheet.create({
   },
   trackBtnText: {
     fontFamily: fonts.bold,
-    fontSize: 13,
+    fontSize: 14,
     color: "#FFFFFF",
     letterSpacing: -0.1,
   },
   trackingDismissWrap: {
     justifyContent: "center",
-    paddingVertical: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
   },
   trackingDismiss: {
     fontFamily: fonts.medium,
     fontSize: 13,
+    color: "#94A3B8",
+  },
+
+  // ---- Sticky bottom tracking bar ----
+
+  bottomBarWrap: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    zIndex: 50,
+  },
+  bottomBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  bottomBarPressed: {
+    backgroundColor: "#F8FAFC",
+    transform: [{ scale: 0.98 }],
+  },
+  bottomBarIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(47, 156, 244, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bottomBarTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  bottomBarTitle: {
+    fontFamily: fonts.semiBold,
+    fontSize: 15,
+    color: "#0F172A",
+    letterSpacing: -0.2,
+  },
+  bottomBarSub: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
     color: "#94A3B8",
   },
 
@@ -2272,6 +2354,92 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 48,
     paddingHorizontal: 20,
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Tracking bottom sheet styles
+// ---------------------------------------------------------------------------
+
+const trackingSheetStyles = StyleSheet.create({
+  sheet: {
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 16,
+  },
+  background: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  handle: {
+    backgroundColor: "#CBD5E1",
+    width: 36,
+    height: 4,
+  },
+  content: {
+    paddingHorizontal: 24,
+    paddingTop: 4,
+    gap: 16,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  title: {
+    fontFamily: fonts.semiBold,
+    fontSize: 18,
+    color: "#0F172A",
+    letterSpacing: -0.3,
+  },
+  closeBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(148, 163, 184, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closeX: {
+    width: 12,
+    height: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closeXLine: {
+    position: "absolute",
+    width: 14,
+    height: 1.5,
+    borderRadius: 1,
+    backgroundColor: "#64748B",
+  },
+  subtitle: {
+    fontFamily: fonts.regular,
+    fontSize: 14,
+    color: "#64748B",
+    lineHeight: 20,
+    marginTop: -8,
+  },
+  watchBtn: {
+    backgroundColor: "#2F9CF4",
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  watchBtnPressed: {
+    backgroundColor: "#1A7ED4",
+    transform: [{ scale: 0.98 }],
+  },
+  watchBtnText: {
+    fontFamily: fonts.bold,
+    fontSize: 16,
+    color: "#FFFFFF",
+    letterSpacing: -0.2,
   },
 });
 

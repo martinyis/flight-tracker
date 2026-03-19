@@ -9,7 +9,7 @@ const produrl =
   "https://flight-tracker-production-c0bb.up.railway.app/api";
 
 const api = axios.create({
-  baseURL: produrl,
+  baseURL: url,
   timeout: 10000,
   headers: { "Content-Type": "application/json" },
 });

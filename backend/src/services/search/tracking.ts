@@ -50,10 +50,23 @@ export async function activateTracking(id: string, userId: string, trackingDays?
   const daysUntilDeparture = Math.max(1, Math.ceil((departure.getTime() - Date.now()) / 86_400_000));
   effectiveDays = Math.min(effectiveDays, daysUntilDeparture);
 
-  // Deduct tracking credits (scaled by duration)
-  const trackingCreditCost = computeTrackingCredits(search.comboCount ?? 1, effectiveDays);
+  // Check if this qualifies for free 7-day tracking (first search only)
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: uid },
+    select: { hasUsedFreeTracking: true, creditBalance: true },
+  });
+  const isFreeTracking = !user.hasUsedFreeTracking && effectiveDays <= 7;
+
+  // Deduct tracking credits (scaled by duration) — skip for free tracking
+  const trackingCreditCost = isFreeTracking ? 0 : computeTrackingCredits(search.comboCount ?? 1, effectiveDays);
   const routeLabel = `Tracking ${effectiveDays}d: ${search.origin}-${search.destination}`;
-  const remainingBalance = await deductCredits(uid, trackingCreditCost, "tracking", search.id, routeLabel);
+  let remainingBalance: number;
+  if (isFreeTracking) {
+    remainingBalance = user.creditBalance;
+    await prisma.user.update({ where: { id: uid }, data: { hasUsedFreeTracking: true } });
+  } else {
+    remainingBalance = await deductCredits(uid, trackingCreditCost, "tracking", search.id, routeLabel);
+  }
 
   // Build initial sentinels for round-trip searches
   let sentinels: { out: string; ret: string }[] = [];

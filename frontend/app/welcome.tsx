@@ -168,11 +168,11 @@ export default function WelcomeScreen() {
 
   const { promptAsync: promptGoogleAsync, isReady: googleReady } =
     useGoogleAuth(
-      async (accessToken, refreshToken) => {
+      async (accessToken, refreshToken, isNewUser) => {
         setGoogleLoading(false);
         haptics.success();
-        await loginWithTokens(accessToken, refreshToken);
-        router.replace("/");
+        await loginWithTokens(accessToken, refreshToken, isNewUser);
+        // Navigation handled by _layout.tsx auth guard
       },
       (message) => {
         setGoogleLoading(false);
@@ -182,11 +182,11 @@ export default function WelcomeScreen() {
     );
 
   const { signIn: appleSignIn } = useAppleAuth(
-    async (accessToken, refreshToken) => {
+    async (accessToken, refreshToken, isNewUser) => {
       setAppleLoading(false);
       haptics.success();
-      await loginWithTokens(accessToken, refreshToken);
-      router.replace("/");
+      await loginWithTokens(accessToken, refreshToken, isNewUser);
+      // Navigation handled by _layout.tsx auth guard
     },
     (message) => {
       setAppleLoading(false);

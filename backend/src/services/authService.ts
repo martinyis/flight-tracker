@@ -149,6 +149,7 @@ interface AuthResult {
   user: User;
   accessToken: string;
   refreshToken: string;
+  isNewUser: boolean;
 }
 
 export async function appleAuth(identityToken: string): Promise<AuthResult> {
@@ -165,6 +166,8 @@ export async function appleAuth(identityToken: string): Promise<AuthResult> {
   const email = payload.email
     ? payload.email.toLowerCase().trim()
     : null;
+
+  let isNewUser = false;
 
   // Case 1: user already linked by appleId
   let user = await prisma.user.findUnique({ where: { appleId } });
@@ -187,12 +190,13 @@ export async function appleAuth(identityToken: string): Promise<AuthResult> {
         data: { email: email ?? `apple_${appleId}@privaterelay.appleid.com`, appleId },
       });
       await grantSignupBonus(user.id);
+      isNewUser = true;
     }
   }
 
   const accessToken = generateToken(String(user.id));
   const refreshToken = await createRefreshToken(user.id);
-  return { user, accessToken, refreshToken };
+  return { user, accessToken, refreshToken, isNewUser };
 }
 
 export async function googleAuth(idToken: string): Promise<AuthResult> {
@@ -213,6 +217,8 @@ export async function googleAuth(idToken: string): Promise<AuthResult> {
   const { sub: googleId, email: rawEmail } = payload;
   const email = rawEmail!.toLowerCase().trim();
 
+  let isNewUser = false;
+
   // Case 1: user already linked by googleId
   let user = await prisma.user.findUnique({ where: { googleId } });
 
@@ -231,10 +237,11 @@ export async function googleAuth(idToken: string): Promise<AuthResult> {
         data: { email, googleId },
       });
       await grantSignupBonus(user.id);
+      isNewUser = true;
     }
   }
 
   const accessToken = generateToken(String(user.id));
   const refreshToken = await createRefreshToken(user.id);
-  return { user, accessToken, refreshToken };
+  return { user, accessToken, refreshToken, isNewUser };
 }

@@ -38,7 +38,7 @@ const fadeTransition = {
 };
 
 function RootLayoutNav() {
-  const { token, isLoading } = useAuth();
+  const { token, isLoading, isNewUser } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -46,13 +46,21 @@ function RootLayoutNav() {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === "welcome";
+    const inOnboarding = segments[0] === "onboarding";
 
     if (!token && !inAuthGroup) {
       router.replace("/welcome");
     } else if (token && inAuthGroup) {
-      router.replace("/");
+      if (isNewUser) {
+        router.replace("/onboarding");
+      } else {
+        router.replace("/");
+      }
+    } else if (token && !inOnboarding && isNewUser) {
+      // Resumed from killed app with pending onboarding
+      router.replace("/onboarding");
     }
-  }, [token, isLoading, segments]);
+  }, [token, isLoading, segments, isNewUser]);
 
   // Navigate to search detail when user taps a notification
   useEffect(() => {
@@ -118,6 +126,9 @@ function RootLayoutNav() {
       >
         {/* Auth screen */}
         <Stack.Screen name="welcome" />
+
+        {/* Onboarding: shown once for new users, no swipe-back */}
+        <Stack.Screen name="onboarding" options={{ gestureEnabled: false, animation: "fade" as const }} />
 
         {/* Tab-like screens: fade transition, no swipe-back gesture */}
         <Stack.Screen name="index" options={fadeTransition} />

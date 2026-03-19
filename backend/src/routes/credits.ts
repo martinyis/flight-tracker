@@ -8,7 +8,9 @@ const router = Router();
 router.get("/balance", creditsController.getBalance);
 router.get("/cost", validate(costQuerySchema), creditsController.getCost);
 router.get("/packs", creditsController.getPacks);
-router.post("/purchase", validate(purchaseSchema), creditsController.purchase);
+if (process.env.NODE_ENV !== "production") {
+  router.post("/purchase", validate(purchaseSchema), creditsController.purchase);
+}
 router.post("/verify-purchase", validate(verifyPurchaseSchema), creditsController.verifyPurchase);
 
 export default router;

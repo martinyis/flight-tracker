@@ -5,9 +5,9 @@ import * as savedSearchService from "../services/savedSearchService";
 import { fetchBookingUrl } from "../services/flightService";
 
 export const createSearch = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { search, creditsCharged, remainingBalance, resultsError } =
+  const { search, trackingCosts, creditsCharged, remainingBalance, resultsError } =
     await savedSearchService.createSavedSearch(req.userId!, req.body);
-  res.status(201).json({ search, creditsCharged, remainingBalance, resultsError });
+  res.status(201).json({ search: { ...search, trackingCosts }, creditsCharged, remainingBalance, resultsError });
 });
 
 export const getSearches = asyncHandler(async (req: AuthRequest, res: Response) => {

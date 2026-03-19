@@ -6,13 +6,23 @@ import prisma from "../config/db";
 import { NotFoundError } from "../errors/AppError";
 
 export const appleLogin = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { user, accessToken, refreshToken } = await authService.appleAuth(req.body.identityToken);
-  res.json({ accessToken, refreshToken, user: { id: user.id, email: user.email } });
+  const { user, accessToken, refreshToken, isNewUser } = await authService.appleAuth(req.body.identityToken);
+  res.json({
+    accessToken,
+    refreshToken,
+    user: { id: user.id, email: user.email, hasUsedFreeSearch: user.hasUsedFreeSearch },
+    isNewUser,
+  });
 });
 
 export const googleLogin = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { user, accessToken, refreshToken } = await authService.googleAuth(req.body.idToken);
-  res.json({ accessToken, refreshToken, user: { id: user.id, email: user.email } });
+  const { user, accessToken, refreshToken, isNewUser } = await authService.googleAuth(req.body.idToken);
+  res.json({
+    accessToken,
+    refreshToken,
+    user: { id: user.id, email: user.email, hasUsedFreeSearch: user.hasUsedFreeSearch },
+    isNewUser,
+  });
 });
 
 export const refreshToken = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -40,6 +50,7 @@ export const getProfile = asyncHandler(async (req: AuthRequest, res: Response) =
       googleId: true,
       appleId: true,
       creditBalance: true,
+      hasUsedFreeSearch: true,
       createdAt: true,
       _count: { select: { searches: true } },
     },
@@ -58,6 +69,7 @@ export const getProfile = asyncHandler(async (req: AuthRequest, res: Response) =
     lastName: user.lastName,
     provider: user.appleId ? "apple" : user.googleId ? "google" : "unknown",
     creditBalance: user.creditBalance,
+    hasUsedFreeSearch: user.hasUsedFreeSearch,
     createdAt: user.createdAt,
     totalSearches: user._count.searches,
     activeSearches,

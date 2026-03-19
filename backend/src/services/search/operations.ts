@@ -9,7 +9,7 @@ import type { FlightCombo, FlightLeg } from "../flightService";
 import {
   searchByParams, searchOneWayByParams,
   hydrateReturnLegs, filterAndSortRawOptions,
-  filterCombosLocally, reduceOneWayFromLegs,
+  filterCombosLocally, filterCombosByAirline, reduceOneWayFromLegs,
   fetchReturnLeg,
 } from "../flightService";
 import { computeNextCheckAt } from "../../workers/priceCheckWorker";
@@ -25,6 +25,7 @@ import {
 } from "../../types/prismaJson";
 import { computeSearchCredits, deductCredits, refundCredits } from "../creditService";
 import { parseId, appendPriceHistory, validateApiFilters } from "./helpers";
+import { buildTrackingCosts } from "./crud";
 
 // ---------------------------------------------------------------------------
 // Paid refresh — re-search SerpAPI with credit deduction (no tracking required)
@@ -41,6 +42,12 @@ export async function paidRefresh(id: string, userId: string, newApiFilters?: Ap
 
   const comboCount = search.comboCount ?? 1;
   const creditCost = computeSearchCredits(comboCount);
+
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: uid },
+    select: { hasUsedFreeTracking: true },
+  });
+  const freeTrackingAvailable = !user.hasUsedFreeTracking;
 
   // Deduct credits upfront
   await deductCredits(
@@ -89,7 +96,8 @@ export async function paidRefresh(id: string, userId: string, newApiFilters?: Ap
         },
         omit: { rawLegs: true },
       });
-      return { search: updated, creditsCharged: creditCost };
+      const tc = buildTrackingCosts(comboCount, search.dateFrom, freeTrackingAvailable);
+      return { search: { ...updated, trackingCosts: tc }, creditsCharged: creditCost };
     } else {
       const { results, unhydratedOptions, cheapestPrice, availableAirlines, airlineLogos, allRawOptions } =
         await searchByParams({
@@ -121,7 +129,8 @@ export async function paidRefresh(id: string, userId: string, newApiFilters?: Ap
         },
         omit: { rawLegs: true },
       });
-      return { search: updated, creditsCharged: creditCost };
+      const tc = buildTrackingCosts(comboCount, search.dateFrom, freeTrackingAvailable);
+      return { search: { ...updated, trackingCosts: tc }, creditsCharged: creditCost };
     }
   } catch (err) {
     // Refund credits on SerpAPI failure
@@ -333,15 +342,17 @@ export async function hydrateSearch(id: string, userId: string) {
     searchApiFilters
   );
 
-  const cheapestPrice = combos.length > 0
-    ? Math.min(...combos.map((c) => c.totalPrice))
+  // Re-apply local airline filter now that return-leg airlines are known
+  const filtered = filterCombosByAirline(combos, searchFilters, TOP_RESULTS_LIMIT);
+  const cheapestPrice = filtered.length > 0
+    ? Math.min(...filtered.map((c) => c.totalPrice))
     : null;
 
   const updated = await prisma.savedSearch.update({
     where: { id: search.id },
     data: {
       rawLegs: jsonRawLegs(combos),
-      latestResults: jsonLatestResults(combos),
+      latestResults: jsonLatestResults(filtered),
       cheapestPrice,
       availableAirlines: jsonAvailableAirlines(availableAirlines),
       airlineLogos: jsonAirlineLogos(airlineLogos),

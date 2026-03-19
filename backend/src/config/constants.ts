@@ -17,6 +17,7 @@ export const SERP_CONCURRENCY = 5;
 // Results
 export const TOP_HYDRATE_COUNT = 4;
 export const TOP_RESULTS_LIMIT = 10;
+export const RAW_LEGS_POOL_SIZE = 50;
 
 // Credits
 export const SIGNUP_BONUS = 50;
