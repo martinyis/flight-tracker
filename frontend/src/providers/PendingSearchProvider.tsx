@@ -23,6 +23,8 @@ interface PendingSearch {
 interface StartSearchResult {
   ok: boolean;
   fastError?: string;
+  insufficientCredits?: boolean;
+  existingSearchId?: number;
 }
 
 interface PendingSearchState {
@@ -75,9 +77,16 @@ export function PendingSearchProvider({ children }: { children: ReactNode }) {
 
         // Fast errors — server responds instantly, user is still on the form
         let fastError: string | undefined;
+        let insufficientCredits = false;
         if (status === 402 && code === "INSUFFICIENT_CREDITS") {
+          insufficientCredits = true;
           fastError = `Not enough credits (have ${e.response.data.balance}, need ${e.response.data.needed}). Buy more credits to search.`;
         } else if (status === 409) {
+          const existingId = e.response?.data?.existingSearchId;
+          if (existingId) {
+            setPending(null);
+            return { ok: false, existingSearchId: existingId };
+          }
           fastError =
             "Duplicate search — you searched this exact route within 24 hours.";
         } else if (status === 429) {
@@ -87,7 +96,7 @@ export function PendingSearchProvider({ children }: { children: ReactNode }) {
 
         if (fastError) {
           setPending(null);
-          return { ok: false, fastError };
+          return { ok: false, fastError, insufficientCredits };
         }
 
         // Slow error — user may have navigated away, show as banner

@@ -66,6 +66,8 @@ export async function paidRefresh(id: string, userId: string, newApiFilters?: Ap
   const searchApiFilters = newApiFilters ?? readApiFilters(search.apiFilters);
   const existingHistory = readPriceHistory(search.priceHistory);
 
+  const MIN_RESULTS_FOR_CHARGE = 5;
+
   try {
     if (search.tripType === "oneway") {
       const { results, cheapestPrice, availableAirlines, airlineLogos, rawLegs } =
@@ -78,6 +80,12 @@ export async function paidRefresh(id: string, userId: string, newApiFilters?: Ap
           apiFilters: searchApiFilters,
         });
 
+      // Refund if too few results
+      const tooFewResults = results.length < MIN_RESULTS_FOR_CHARGE;
+      if (tooFewResults) {
+        await refundCredits(uid, creditCost, search.id, `Re-search returned only ${results.length} results — refunded`);
+      }
+
       const updated = await prisma.savedSearch.update({
         where: { id: search.id },
         data: {
@@ -88,7 +96,7 @@ export async function paidRefresh(id: string, userId: string, newApiFilters?: Ap
           airlineLogos: jsonAirlineLogos(airlineLogos),
           lastCheckedAt: new Date(),
           priceHistory: jsonPriceHistory(appendPriceHistory(existingHistory, cheapestPrice)),
-          searchCredits: (search.searchCredits ?? 0) + creditCost,
+          searchCredits: (search.searchCredits ?? 0) + (tooFewResults ? 0 : creditCost),
           ...(newApiFilters && {
             apiFilters: jsonApiFilters(newApiFilters),
             filters: jsonFilters({}),
@@ -97,7 +105,11 @@ export async function paidRefresh(id: string, userId: string, newApiFilters?: Ap
         omit: { rawLegs: true },
       });
       const tc = buildTrackingCosts(comboCount, search.dateFrom, freeTrackingAvailable);
-      return { search: { ...updated, trackingCosts: tc }, creditsCharged: creditCost };
+      return {
+        search: { ...updated, trackingCosts: tc },
+        creditsCharged: tooFewResults ? 0 : creditCost,
+        creditsRefunded: tooFewResults,
+      };
     } else {
       const { results, unhydratedOptions, cheapestPrice, availableAirlines, airlineLogos, allRawOptions } =
         await searchByParams({
@@ -111,6 +123,12 @@ export async function paidRefresh(id: string, userId: string, newApiFilters?: Ap
           apiFilters: searchApiFilters,
         });
 
+      const totalResults = results.length + unhydratedOptions.length;
+      const tooFewResults = totalResults < MIN_RESULTS_FOR_CHARGE;
+      if (tooFewResults) {
+        await refundCredits(uid, creditCost, search.id, `Re-search returned only ${totalResults} results — refunded`);
+      }
+
       const updated = await prisma.savedSearch.update({
         where: { id: search.id },
         data: {
@@ -121,7 +139,7 @@ export async function paidRefresh(id: string, userId: string, newApiFilters?: Ap
           airlineLogos: jsonAirlineLogos(airlineLogos),
           lastCheckedAt: new Date(),
           priceHistory: jsonPriceHistory(appendPriceHistory(existingHistory, cheapestPrice)),
-          searchCredits: (search.searchCredits ?? 0) + creditCost,
+          searchCredits: (search.searchCredits ?? 0) + (tooFewResults ? 0 : creditCost),
           ...(newApiFilters && {
             apiFilters: jsonApiFilters(newApiFilters),
             filters: jsonFilters({}),
@@ -130,7 +148,11 @@ export async function paidRefresh(id: string, userId: string, newApiFilters?: Ap
         omit: { rawLegs: true },
       });
       const tc = buildTrackingCosts(comboCount, search.dateFrom, freeTrackingAvailable);
-      return { search: { ...updated, trackingCosts: tc }, creditsCharged: creditCost };
+      return {
+        search: { ...updated, trackingCosts: tc },
+        creditsCharged: tooFewResults ? 0 : creditCost,
+        creditsRefunded: tooFewResults,
+      };
     }
   } catch (err) {
     // Refund credits on SerpAPI failure

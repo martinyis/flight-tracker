@@ -338,17 +338,22 @@ function SearchRow({
     meta.push(`${item.resultCount} flight${item.resultCount !== 1 ? "s" : ""}`);
   }
 
-  let status = "";
+  // Tracking state
+  const trackingLeft = trackingDaysLeft(item.trackingStartedAt, item.trackingDays);
+  const isTracking = item.active && trackingLeft != null;
+  const isExpiringSoon = isTracking && trackingLeft != null && trackingLeft <= 3;
+
+  let trackingLabel = "";
   if (!item.active) {
-    status = "Paused";
-  } else {
-    const left = trackingDaysLeft(item.trackingStartedAt, item.trackingDays);
-    if (left != null) {
-      status =
-        left === 0 ? "Expires today" : left === 1 ? "Expires tomorrow" : `${left}d left`;
-    } else if (item.lastCheckedAt) {
-      status = `Last checked ${timeAgo(item.lastCheckedAt)} — nothing cheaper yet`;
-    }
+    trackingLabel = "Paused";
+  } else if (trackingLeft != null) {
+    trackingLabel =
+      trackingLeft === 0 ? "Expires today" : trackingLeft === 1 ? "Expires tomorrow" : `${trackingLeft}d tracking`;
+  }
+
+  let statusText = "";
+  if (item.lastCheckedAt) {
+    statusText = `Checked ${timeAgo(item.lastCheckedAt)}`;
   }
 
   return (
@@ -367,14 +372,14 @@ function SearchRow({
         {/* Route + price */}
         <View style={rS.topLine}>
           <View style={rS.routeWrap}>
-            <Text style={[rS.code, !item.active && rS.muted]}>{item.origin}</Text>
+            <Text style={rS.code}>{item.origin}</Text>
             <RouteArrow width={28} color={C.n300} />
-            <Text style={[rS.code, !item.active && rS.muted]}>{item.destination}</Text>
+            <Text style={rS.code}>{item.destination}</Text>
           </View>
           <View style={rS.priceArea}>
             <Sparkline history={item.priceHistory} currentPrice={item.cheapestPrice} />
             {item.cheapestPrice != null ? (
-              <Text style={[rS.price, !item.active && rS.muted]}>
+              <Text style={rS.price}>
                 ${item.cheapestPrice}
               </Text>
             ) : (
@@ -404,14 +409,39 @@ function SearchRow({
           </View>
         )}
 
-        {/* Meta + status */}
+        {/* Meta + tracking pill */}
         <View style={rS.metaRow}>
           <Text style={rS.meta}>{meta.join("  \u00B7  ")}</Text>
-          {status !== "" && (
-            <Text style={[rS.status, !item.active && { opacity: 0.5 }]}>
-              {status}
-            </Text>
-          )}
+          <View style={rS.statusArea}>
+            {statusText !== "" && !trackingLabel && (
+              <Text style={rS.status}>{statusText}</Text>
+            )}
+            {trackingLabel !== "" && (
+              <View
+                style={[
+                  rS.trackingPill,
+                  !item.active
+                    ? rS.trackingPaused
+                    : isExpiringSoon
+                    ? rS.trackingExpiring
+                    : rS.trackingActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    rS.trackingPillText,
+                    !item.active
+                      ? rS.trackingPausedText
+                      : isExpiringSoon
+                      ? rS.trackingExpiringText
+                      : rS.trackingActiveText,
+                  ]}
+                >
+                  {trackingLabel}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
       </Pressable>
     </Animated.View>
@@ -421,7 +451,6 @@ function SearchRow({
 const rS = StyleSheet.create({
   row: { paddingVertical: 16, paddingHorizontal: 20, minHeight: 72 },
   rowPressed: { backgroundColor: "rgba(47, 156, 244, 0.04)" },
-  muted: { opacity: 0.5 },
   topLine: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -460,7 +489,34 @@ const rS = StyleSheet.create({
     alignItems: "center",
   },
   meta: { fontFamily: fonts.regular, fontSize: 13, color: C.n400 },
+  statusArea: { flexDirection: "row", alignItems: "center" },
   status: { fontFamily: fonts.medium, fontSize: 12, color: C.n400 },
+  trackingPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  trackingActive: {
+    backgroundColor: "rgba(47, 156, 244, 0.1)",
+    borderColor: "rgba(47, 156, 244, 0.25)",
+  },
+  trackingActiveText: { color: "#1A7ED4" },
+  trackingExpiring: {
+    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    borderColor: "rgba(245, 158, 11, 0.25)",
+  },
+  trackingExpiringText: { color: "#D97706" },
+  trackingPaused: {
+    backgroundColor: "rgba(148, 163, 184, 0.1)",
+    borderColor: "rgba(148, 163, 184, 0.25)",
+  },
+  trackingPausedText: { color: C.n400 },
+  trackingPillText: {
+    fontFamily: fonts.semiBold,
+    fontSize: 11,
+    letterSpacing: -0.1,
+  },
   divider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: C.divider,

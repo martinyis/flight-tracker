@@ -10,6 +10,9 @@ import {
   extractAirlines, extractAirlineLogos,
   filterAndSortRawOptions, filterCombosByAirline, reduceOneWayFromLegs,
 } from "./filtering";
+import logger from "../../config/logger";
+
+const searchLog = logger.child({ component: "orchestration" });
 
 // ── Sentinel price checking ──
 
@@ -24,7 +27,8 @@ export async function fetchSentinelPrices(
   const allResults = await pMap(
     sentinels,
     (pair) => searchRoundTrip(origin, destination, pair.out, pair.ret, apiFilters, tracker),
-    SENTINEL_CONCURRENCY
+    SENTINEL_CONCURRENCY,
+    [] as RoundTripRawOption[]
   );
 
   const allOptions = allResults.flat();
@@ -51,7 +55,8 @@ export async function fetchAndReduceCombos(
   const tracker = createTracker();
   const { origin, destination, dateFrom, dateTo, minNights, maxNights } = params;
 
-  const outboundDates = generateDates(dateFrom, addDays(dateTo, -minNights));
+  const lastOutbound = addDays(dateTo, -minNights);
+  const outboundDates = generateDates(dateFrom, lastOutbound);
   const datePairs: { out: string; ret: string }[] = [];
   for (const out of outboundDates) {
     const earliestReturn = addDays(out, minNights);
@@ -63,13 +68,65 @@ export async function fetchAndReduceCombos(
     }
   }
 
+  searchLog.info(
+    {
+      origin, destination, dateFrom, dateTo, minNights, maxNights,
+      lastOutboundDate: lastOutbound,
+      outboundDatesCount: outboundDates.length,
+      outboundDatesRange: outboundDates.length > 0
+        ? `${outboundDates[0]} to ${outboundDates[outboundDates.length - 1]}`
+        : "EMPTY",
+      datePairsCount: datePairs.length,
+      firstPair: datePairs[0] ?? null,
+      lastPair: datePairs[datePairs.length - 1] ?? null,
+      apiFilters: params.apiFilters ?? null,
+    },
+    "fetchAndReduceCombos: starting search"
+  );
+
+  if (datePairs.length === 0) {
+    searchLog.error(
+      { dateFrom, dateTo, minNights, maxNights, lastOutboundDate: lastOutbound },
+      "fetchAndReduceCombos: ZERO date pairs generated — no API calls will be made"
+    );
+  }
+
   const allResults = await pMap(
     datePairs,
     (pair) => searchRoundTrip(origin, destination, pair.out, pair.ret, params.apiFilters, tracker),
-    SERP_CONCURRENCY
+    SERP_CONCURRENCY,
+    [] as RoundTripRawOption[]
   );
 
+  // Count how many API calls returned results vs empty
+  const callsWithResults = allResults.filter((r) => r.length > 0).length;
+  const callsEmpty = allResults.filter((r) => r.length === 0).length;
+
   const rawRoundTrips = allResults.flat();
+
+  searchLog.info(
+    {
+      totalApiCalls: datePairs.length,
+      callsWithResults,
+      callsEmpty,
+      totalRawOptions: rawRoundTrips.length,
+      samplePrices: rawRoundTrips.slice(0, 5).map((o) => ({
+        price: o.price,
+        out: o.outboundDate,
+        ret: o.returnDate,
+        nights: o.nights,
+      })),
+    },
+    "fetchAndReduceCombos: SerpAPI calls complete"
+  );
+
+  if (rawRoundTrips.length === 0) {
+    searchLog.warn(
+      { origin, destination, datePairsCount: datePairs.length },
+      "fetchAndReduceCombos: ALL API calls returned 0 results — SerpAPI may not cover this route"
+    );
+  }
+
   // Store a larger pool in rawLegs so airline filtering has more options to draw from
   const rawPool = filterAndSortRawOptions(rawRoundTrips, undefined, RAW_LEGS_POOL_SIZE);
   const top10 = rawPool.slice(0, TOP_RESULTS_LIMIT);
@@ -78,7 +135,26 @@ export async function fetchAndReduceCombos(
   // Filter unhydrated options by outbound airline so excluded airlines don't leak into latestResults
   const unhydrated = filterAndSortRawOptions(top10.slice(TOP_HYDRATE_COUNT), params.filters);
 
+  searchLog.info(
+    {
+      rawPoolSize: rawPool.length,
+      top10Count: top10.length,
+      toHydrateCount: toHydrate.length,
+      unhydratedCount: unhydrated.length,
+    },
+    "fetchAndReduceCombos: filtered and sorted"
+  );
+
   const hydratedCombos = await buildCombosFromRawOptions(toHydrate, origin, destination, params.apiFilters, tracker);
+
+  searchLog.info(
+    {
+      toHydrateCount: toHydrate.length,
+      hydratedComboCount: hydratedCombos.length,
+      failedHydrations: toHydrate.length - hydratedCombos.length,
+    },
+    "fetchAndReduceCombos: hydration complete"
+  );
 
   // Extract available airlines from the full pool so filter chips show all options
   const poolLegs = rawPool.map((o) => o.outbound);
@@ -88,6 +164,15 @@ export async function fetchAndReduceCombos(
   const airlineLogos = extractAirlineLogos(allLegs);
 
   const combos = filterCombosByAirline(hydratedCombos, params.filters, TOP_HYDRATE_COUNT);
+
+  searchLog.info(
+    {
+      finalCombos: combos.length,
+      unhydratedOptions: unhydrated.length,
+      availableAirlines,
+    },
+    "fetchAndReduceCombos: DONE"
+  );
 
   tracker.printSummary("FULL SEARCH (fetchAndReduceCombos)");
   return { combos, unhydratedOptions: unhydrated, availableAirlines, airlineLogos, allRawOptions: rawPool };
@@ -184,7 +269,8 @@ export async function fetchPriceOnly(
   const allResults = await pMap(
     datePairs,
     (pair) => searchRoundTrip(origin, destination, pair.out, pair.ret, apiFilters, tracker),
-    SERP_CONCURRENCY
+    SERP_CONCURRENCY,
+    [] as RoundTripRawOption[]
   );
 
   const rawRoundTrips = allResults.flat();

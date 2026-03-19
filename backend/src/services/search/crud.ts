@@ -16,6 +16,9 @@ import {
   jsonAvailableAirlines, jsonAirlineLogos, jsonPriceHistory,
 } from "../../types/prismaJson";
 import { parseId, validateApiFilters, appendPriceHistory, computeLogosFromResults } from "./helpers";
+import logger from "../../config/logger";
+
+const crudLog = logger.child({ component: "searchCrud" });
 
 // ---------------------------------------------------------------------------
 // Tracking cost helper
@@ -178,6 +181,18 @@ export async function createSavedSearch(
 
   // Run the full SerpAPI search with API-level filters
   let resultsError: string | undefined;
+
+  crudLog.info(
+    {
+      searchId: search.id, tripType: search.tripType,
+      origin: search.origin, destination: search.destination,
+      dateFrom: search.dateFrom, dateTo: search.dateTo,
+      minNights: search.minNights, maxNights: search.maxNights,
+      comboCount, apiFilters: apiFilters ?? null,
+    },
+    "createSavedSearch: starting SerpAPI search"
+  );
+
   try {
     if (search.tripType === "oneway") {
       const { results, cheapestPrice, availableAirlines, airlineLogos, rawLegs } =
@@ -188,6 +203,11 @@ export async function createSavedSearch(
           dateTo: search.dateTo,
           apiFilters,
         });
+
+      crudLog.info(
+        { searchId: search.id, resultCount: results.length, cheapestPrice, rawLegCount: rawLegs.length },
+        "createSavedSearch: one-way search complete"
+      );
 
       search = await prisma.savedSearch.update({
         where: { id: search.id },
@@ -214,6 +234,31 @@ export async function createSavedSearch(
           apiFilters,
         });
 
+      crudLog.info(
+        {
+          searchId: search.id,
+          hydratedResults: results.length,
+          unhydratedOptions: unhydratedOptions.length,
+          totalLatestResults: results.length + unhydratedOptions.length,
+          cheapestPrice,
+          allRawOptionsCount: allRawOptions.length,
+          availableAirlines,
+        },
+        "createSavedSearch: round-trip search complete"
+      );
+
+      if (results.length === 0 && unhydratedOptions.length === 0) {
+        crudLog.warn(
+          {
+            searchId: search.id, origin: search.origin, destination: search.destination,
+            dateFrom: search.dateFrom, dateTo: search.dateTo,
+            minNights: search.minNights, maxNights: search.maxNights,
+            allRawOptionsCount: allRawOptions.length,
+          },
+          "createSavedSearch: ZERO RESULTS — check if SerpAPI returns data for this route"
+        );
+      }
+
       search = await prisma.savedSearch.update({
         where: { id: search.id },
         data: {
@@ -229,6 +274,10 @@ export async function createSavedSearch(
       });
     }
   } catch (err) {
+    crudLog.error(
+      { searchId: search.id, error: (err as Error).message, stack: (err as Error).stack },
+      "createSavedSearch: SerpAPI search FAILED — refunding and deleting"
+    );
     // SerpAPI failed after credits were deducted — refund and clean up
     if (!isFreeSearch) {
       await refundCredits(uid, searchCreditCost, search.id, `Refund: ${routeLabel} (search failed)`);
@@ -249,6 +298,10 @@ export async function createSavedSearch(
   const resultCount = readLatestResults(search.latestResults).length;
   let creditsCharged = searchCreditCost;
   if (!isFreeSearch && resultCount <= 5) {
+    crudLog.info(
+      { searchId: search.id, resultCount, creditsRefunded: searchCreditCost },
+      "createSavedSearch: refunding credits (<=5 results)"
+    );
     remainingBalance = await refundCredits(uid, searchCreditCost, search.id,
       `Refund: ${routeLabel} (only ${resultCount} result${resultCount === 1 ? "" : "s"} found)`);
     creditsCharged = 0;

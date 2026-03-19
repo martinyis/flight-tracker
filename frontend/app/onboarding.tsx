@@ -15,6 +15,7 @@ import {
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import { CalendarSearch, TrendingDown, Bell, Sparkles } from "lucide-react-native";
 import { useAuth } from "../src/providers/AuthProvider";
 import { useHaptics } from "../src/providers/HapticsProvider";
 import { fonts } from "../src/theme";
@@ -294,28 +295,33 @@ export default function OnboardingScreen() {
             <Text style={styles.headline}>
               We do the{"\n"}tedious work
             </Text>
-
-            <View style={styles.bulletList}>
-              <View style={styles.bulletRow}>
-                <View style={[styles.bulletDot, { backgroundColor: C.primary }]} />
-                <Text style={styles.bulletText}>
-                  <Text style={styles.bulletBold}>Search hundreds</Text> of date
-                  combinations in seconds
-                </Text>
+            <View style={styles.featureList}>
+              <View style={styles.featureRow}>
+                <View style={[styles.featureIcon, { backgroundColor: "rgba(47, 156, 244, 0.08)" }]}>
+                  <CalendarSearch size={20} color={C.primary} strokeWidth={2} />
+                </View>
+                <View style={styles.featureTextWrap}>
+                  <Text style={styles.featureTitle}>Hundreds of dates</Text>
+                  <Text style={styles.featureDesc}>Every date combination checked in seconds</Text>
+                </View>
               </View>
-              <View style={styles.bulletRow}>
-                <View style={[styles.bulletDot, { backgroundColor: C.green }]} />
-                <Text style={styles.bulletText}>
-                  <Text style={styles.bulletBold}>Find the absolute cheapest</Text>{" "}
-                  flight for your trip
-                </Text>
+              <View style={styles.featureRow}>
+                <View style={[styles.featureIcon, { backgroundColor: "rgba(34, 197, 94, 0.08)" }]}>
+                  <TrendingDown size={20} color={C.green} strokeWidth={2} />
+                </View>
+                <View style={styles.featureTextWrap}>
+                  <Text style={styles.featureTitle}>Lowest price found</Text>
+                  <Text style={styles.featureDesc}>The absolute cheapest flight for your trip</Text>
+                </View>
               </View>
-              <View style={styles.bulletRow}>
-                <View style={[styles.bulletDot, { backgroundColor: C.warm500 }]} />
-                <Text style={styles.bulletText}>
-                  <Text style={styles.bulletBold}>Get notified</Text> when prices
-                  drop
-                </Text>
+              <View style={styles.featureRow}>
+                <View style={[styles.featureIcon, { backgroundColor: "rgba(47, 156, 244, 0.08)" }]}>
+                  <Bell size={20} color={C.primary} strokeWidth={2} />
+                </View>
+                <View style={styles.featureTextWrap}>
+                  <Text style={styles.featureTitle}>Price drop alerts</Text>
+                  <Text style={styles.featureDesc}>Get notified when prices go down</Text>
+                </View>
               </View>
             </View>
           </AnimatedPageContent>
@@ -333,11 +339,11 @@ export default function OnboardingScreen() {
             </Text>
 
             <View style={styles.creditHint}>
-              <View style={styles.coinIcon}>
-                <Text style={styles.coinText}>50</Text>
+              <View style={styles.creditHintIcon}>
+                <Sparkles size={16} color={C.primary} strokeWidth={2} />
               </View>
               <Text style={styles.creditHintText}>
-                You have 50 free credits to start tracking prices
+                <Text style={styles.creditHintBold}>50 free credits</Text> to start tracking prices
               </Text>
             </View>
 
@@ -432,59 +438,71 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
 
-  // Bullet list (Screen 2)
-  bulletList: {
-    gap: 20,
-    marginTop: 24,
+  // Feature list (Screen 2)
+  featureList: {
+    gap: 24,
+    marginTop: 8,
   },
-  bulletRow: {
+  featureRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 14,
+    alignItems: "center",
+    gap: 16,
   },
-  bulletDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginTop: 6,
+  featureIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  bulletText: {
-    fontFamily: fonts.regular,
-    fontSize: 16,
-    color: C.n500,
-    lineHeight: 24,
+  featureTextWrap: {
     flex: 1,
+    gap: 2,
   },
-  bulletBold: {
+  featureTitle: {
     fontFamily: fonts.semiBold,
+    fontSize: 16,
     color: C.n900,
+    letterSpacing: -0.1,
+  },
+  featureDesc: {
+    fontFamily: fonts.regular,
+    fontSize: 14,
+    color: C.n500,
+    lineHeight: 20,
   },
 
   // Credit hint (Screen 3)
   creditHint: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
+    backgroundColor: "rgba(47, 156, 244, 0.06)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(47, 156, 244, 0.12)",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     marginBottom: 32,
   },
-  coinIcon: {
+  creditHintIcon: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: C.warm500,
+    backgroundColor: "rgba(47, 156, 244, 0.1)",
     alignItems: "center",
     justifyContent: "center",
   },
-  coinText: {
-    fontFamily: fonts.bold,
-    fontSize: 12,
-    color: "#FFFFFF",
-  },
   creditHintText: {
-    fontFamily: fonts.medium,
+    fontFamily: fonts.regular,
     fontSize: 14,
     color: C.n500,
     flex: 1,
+    lineHeight: 20,
+  },
+  creditHintBold: {
+    fontFamily: fonts.semiBold,
+    color: C.n900,
   },
 
   // Primary CTA

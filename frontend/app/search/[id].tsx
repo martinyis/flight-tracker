@@ -31,6 +31,7 @@ import {
 } from "../../src/components/flights/FlightStrip";
 import BackButton from "../../src/components/ui/BackButton";
 import AirlineLogo from "../../src/components/ui/AirlineLogo";
+import InsufficientCreditsModal from "../../src/components/ui/InsufficientCreditsModal";
 import { timeAgo } from "../../src/lib/utils/time";
 import { fonts } from "../../src/theme";
 import { useCredits } from "../../src/providers/CreditsProvider";
@@ -462,6 +463,18 @@ export default function SearchDetailScreen() {
   const [selectedTrackingDays, setSelectedTrackingDays] = useState(14);
   const [activatingTracking, setActivatingTracking] = useState(false);
 
+  // Auto-adjust selected tracking days if departure is too soon
+  useEffect(() => {
+    if (!search) return;
+    const dep = new Date(search.dateFrom + "T00:00:00").getTime();
+    const daysLeft = Math.max(1, Math.ceil((dep - Date.now()) / 86_400_000));
+    if (selectedTrackingDays > daysLeft && selectedTrackingDays !== 0) {
+      // Pick the largest valid preset, or fall back to "until departure" (0)
+      const validPreset = [7, 14, 30].filter((d) => d <= daysLeft).pop();
+      setSelectedTrackingDays(validPreset ?? 0);
+    }
+  }, [search?.dateFrom]);
+
   const renderTrackingBackdrop = useCallback(
     (props: any) => (
       <BottomSheetBackdrop
@@ -481,6 +494,17 @@ export default function SearchDetailScreen() {
   const [reSearchBags, setReSearchBags] = useState<0 | 1 | undefined>();
   const [reSearchExcludeAirlines, setReSearchExcludeAirlines] = useState<Set<string>>(new Set());
   const [reSearching, setReSearching] = useState(false);
+
+  // -- Insufficient credits modal --
+  const [creditsModalVisible, setCreditsModalVisible] = useState(false);
+  const [creditsModalNeeded, setCreditsModalNeeded] = useState<number | undefined>();
+  const [creditsModalBalance, setCreditsModalBalance] = useState<number | undefined>();
+
+  const showCreditsModal = (needed?: number, bal?: number) => {
+    setCreditsModalNeeded(needed);
+    setCreditsModalBalance(bal);
+    setCreditsModalVisible(true);
+  };
 
   // -- Refresh button: cooldown & loading phase --
   const COOLDOWN_SECONDS = 120; // 2 minutes
@@ -683,14 +707,7 @@ export default function SearchDetailScreen() {
     const userBalance = balance ?? 0;
 
     if (userBalance < cost) {
-      Alert.alert(
-        "Not enough credits",
-        `This search costs ${cost} credits but you only have ${userBalance}. Top up to continue.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Buy Credits", onPress: () => router.push("/credits") },
-        ]
-      );
+      showCreditsModal(cost, userBalance);
       return;
     }
 
@@ -709,13 +726,13 @@ export default function SearchDetailScreen() {
               setSearch(res.data.search);
               startCooldown();
               refreshCredits();
+              if (res.data.creditsRefunded) {
+                toast.show("Few results found — credits refunded");
+              }
             } catch (err: any) {
               const status = err.response?.status;
               if (status === 402) {
-                Alert.alert(
-                  "Not enough credits",
-                  err.response?.data?.error ?? "Insufficient credits for this search."
-                );
+                showCreditsModal(err.response?.data?.needed, err.response?.data?.balance);
               } else {
                 Alert.alert("Error", "Something went wrong. Pull down to try again.");
               }
@@ -744,7 +761,13 @@ export default function SearchDetailScreen() {
       );
     } catch (err: any) {
       haptics.error();
-      Alert.alert("Error", err.response?.data?.error ?? "Failed to activate tracking");
+      const status = err.response?.status;
+      if (status === 402) {
+        trackingSheetRef.current?.dismiss();
+        showCreditsModal(err.response?.data?.needed, err.response?.data?.balance);
+      } else {
+        Alert.alert("Error", err.response?.data?.error ?? "Failed to activate tracking");
+      }
     } finally {
       setActivatingTracking(false);
     }
@@ -849,14 +872,7 @@ export default function SearchDetailScreen() {
     const userBalance = balance ?? 0;
 
     if (userBalance < cost) {
-      Alert.alert(
-        "Not enough credits",
-        `This search costs ${cost} credits but you only have ${userBalance}. Top up to continue.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Buy Credits", onPress: () => router.push("/credits") },
-        ]
-      );
+      showCreditsModal(cost, userBalance);
       return;
     }
 
@@ -885,10 +901,7 @@ export default function SearchDetailScreen() {
     } catch (err: any) {
       const status = err.response?.status;
       if (status === 402) {
-        Alert.alert(
-          "Not enough credits",
-          err.response?.data?.error ?? "Insufficient credits for this search."
-        );
+        showCreditsModal(err.response?.data?.needed, err.response?.data?.balance);
       } else {
         Alert.alert("Error", "Something went wrong. Please try again.");
       }
@@ -931,6 +944,16 @@ export default function SearchDetailScreen() {
     const isFirstTime = !search.lastCheckedAt && search.latestResults.length === 0;
     const isCoolingDown = cooldownLeft > 0 && !refreshing;
     const isUnpaid = !search.trackingActive;
+    const isDataFresh = (() => {
+      if (!search.lastCheckedAt || !search.trackingActive) return false;
+      const age = Date.now() - new Date(search.lastCheckedAt).getTime();
+      return age < AUTO_REFRESH_THRESHOLD_MS;
+    })();
+    const hoursUntilRefresh = (() => {
+      if (!search.lastCheckedAt) return 0;
+      const age = Date.now() - new Date(search.lastCheckedAt).getTime();
+      return Math.max(1, Math.ceil((AUTO_REFRESH_THRESHOLD_MS - age) / 3_600_000));
+    })();
     const searchCost = computeSearchCredits((search.comboCount ?? search.latestResults.length) || 1);
 
     return (
@@ -1041,6 +1064,17 @@ export default function SearchDetailScreen() {
               <RefreshCycleIcon size={14} color="#94A3B8" />
               <Text style={styles.actionLineMuted}>
                 Price tracking available
+              </Text>
+            </View>
+          ) : isDataFresh ? (
+            <View style={styles.actionLineRow}>
+              <CheckIcon size={12} color="#94A3B8" />
+              <Text style={styles.actionLineMuted}>
+                Prices up to date
+              </Text>
+              <View style={styles.actionDot} />
+              <Text style={styles.actionLineMuted}>
+                Next scan in {hoursUntilRefresh}h
               </Text>
             </View>
           ) : (
@@ -1691,7 +1725,7 @@ export default function SearchDetailScreen() {
             </Text>
 
             <View style={styles.trackingChipsRow}>
-              {TRACKING_PRESETS.map((preset) => {
+              {TRACKING_PRESETS.filter((preset) => preset.days <= daysUntilDeparture).map((preset) => {
                 const credits = search.trackingCosts?.[preset.days] ?? 0;
                 const isFree = preset.days === 7 && search.trackingCosts?.freeTrackingAvailable;
                 const isSelected = selectedTrackingDays === preset.days;
@@ -1760,6 +1794,13 @@ export default function SearchDetailScreen() {
           </BottomSheetView>
         </BottomSheetModal>
       )}
+
+      <InsufficientCreditsModal
+        visible={creditsModalVisible}
+        onClose={() => setCreditsModalVisible(false)}
+        needed={creditsModalNeeded}
+        balance={creditsModalBalance}
+      />
     </View>
   );
 }

@@ -51,21 +51,41 @@ export function createTracker(): Tracker {
 export async function pMap<T, R>(
   items: T[],
   fn: (item: T) => Promise<R>,
-  concurrency: number
+  concurrency: number,
+  fallback?: R
 ): Promise<R[]> {
   const results: R[] = new Array(items.length);
   let idx = 0;
+  let failCount = 0;
 
   async function worker() {
     while (idx < items.length) {
       const i = idx++;
-      results[i] = await fn(items[i]);
+      try {
+        results[i] = await fn(items[i]);
+      } catch (err) {
+        failCount++;
+        serpLog.warn(
+          { index: i, total: items.length, failCount, error: (err as Error).message },
+          "pMap: individual call failed, using fallback"
+        );
+        if (fallback !== undefined) {
+          results[i] = fallback;
+        } else {
+          throw err;
+        }
+      }
     }
   }
 
   await Promise.all(
     Array.from({ length: Math.min(concurrency, items.length) }, () => worker())
   );
+
+  if (failCount > 0) {
+    serpLog.warn({ failCount, total: items.length }, "pMap completed with failures");
+  }
+
   return results;
 }
 
@@ -153,7 +173,7 @@ export async function searchOneWay(
   return legs;
 }
 
-/** Search SerpAPI as a round-trip (type=1). */
+/** Search SerpAPI as a round-trip (type=1). Retries once on transient errors. */
 export async function searchRoundTrip(
   origin: string,
   destination: string,
@@ -176,31 +196,65 @@ export async function searchRoundTrip(
   applySerpApiFilters(params, apiFilters);
 
   tracker?.track("searchRoundTrip", `${origin}→${destination} ${outboundDate}→${returnDate}`);
-  const res = await fetch(`${SERP_BASE}?${params}`);
-  if (!res.ok) {
-    throw new Error(`SerpAPI error ${res.status}: ${await res.text()}`);
+
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, 1000 + Math.random() * 1000));
+      serpLog.info({ attempt, outboundDate, returnDate }, "Retrying searchRoundTrip");
+    }
+    try {
+      const res = await fetch(`${SERP_BASE}?${params}`);
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`SerpAPI error ${res.status}: ${body}`);
+      }
+
+      const data: any = await res.json();
+      const options: RoundTripRawOption[] = [];
+      const nights = diffDays(outboundDate, returnDate);
+
+      const bestCount = data.best_flights?.length ?? 0;
+      const otherCount = data.other_flights?.length ?? 0;
+
+      // Log first call's full response structure to diagnose empty results
+      if (bestCount === 0 && otherCount === 0) {
+        serpLog.warn(
+          {
+            outboundDate, returnDate,
+            origin, destination,
+            responseKeys: Object.keys(data),
+            searchMetadata: data.search_metadata ?? null,
+            searchParameters: data.search_parameters ?? null,
+            priceInsights: data.price_insights ?? null,
+            error: data.error ?? null,
+          },
+          "searchRoundTrip: SerpAPI returned 0 flights"
+        );
+      }
+
+      for (const group of [...(data.best_flights ?? []), ...(data.other_flights ?? [])]) {
+        if (!group.flights?.length) continue;
+        options.push({
+          outbound: parseLeg(group, outboundDate),
+          price: group.price,
+          outboundDate,
+          returnDate,
+          nights,
+          departure_token: group.departure_token,
+        });
+      }
+
+      return options;
+    } catch (err) {
+      lastError = err as Error;
+    }
   }
 
-  const data: any = await res.json();
-  const options: RoundTripRawOption[] = [];
-  const nights = diffDays(outboundDate, returnDate);
-
-  for (const group of [...(data.best_flights ?? []), ...(data.other_flights ?? [])]) {
-    if (!group.flights?.length) continue;
-    options.push({
-      outbound: parseLeg(group, outboundDate),
-      price: group.price,
-      outboundDate,
-      returnDate,
-      nights,
-      departure_token: group.departure_token,
-    });
-  }
-
-  return options;
+  throw lastError!;
 }
 
-/** Fetch return flight details for a selected outbound via its departure_token. */
+/** Fetch return flight details for a selected outbound via its departure_token. Retries once on error. */
 export async function fetchReturnLeg(
   departureToken: string,
   origin: string,
@@ -225,13 +279,29 @@ export async function fetchReturnLeg(
   applySerpApiFilters(params, apiFilters);
 
   tracker?.track("fetchReturnLeg", `${origin}→${destination} ${outboundDate}→${returnDate}`);
-  const res = await fetch(`${SERP_BASE}?${params}`);
-  if (!res.ok) return null;
 
-  const data: any = await res.json();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, 1000 + Math.random() * 1000));
+      serpLog.info({ attempt, outboundDate, returnDate }, "Retrying fetchReturnLeg");
+    }
+    try {
+      const res = await fetch(`${SERP_BASE}?${params}`);
+      if (!res.ok) {
+        const body = await res.text();
+        serpLog.warn({ status: res.status, body: body.slice(0, 200) }, "fetchReturnLeg HTTP error");
+        continue;
+      }
 
-  const allFlights = [...(data.best_flights ?? []), ...(data.other_flights ?? [])];
-  if (allFlights.length === 0 || !allFlights[0].flights?.length) return null;
+      const data: any = await res.json();
+      const allFlights = [...(data.best_flights ?? []), ...(data.other_flights ?? [])];
+      if (allFlights.length === 0 || !allFlights[0].flights?.length) return null;
 
-  return parseLeg(allFlights[0], returnDate);
+      return parseLeg(allFlights[0], returnDate);
+    } catch (err) {
+      serpLog.warn({ error: (err as Error).message }, "fetchReturnLeg network error");
+    }
+  }
+
+  return null;
 }

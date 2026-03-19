@@ -5,6 +5,7 @@ import {
   Pressable,
   ScrollView,
   Animated,
+  Modal,
   KeyboardAvoidingView,
   Platform,
   UIManager,
@@ -15,9 +16,7 @@ import {
   SafeAreaView,
   TextInput,
 } from "react-native";
-import DateTimePicker, {
-  DateTimePickerEvent,
-} from "@react-native-community/datetimepicker";
+import CalendarPicker from "../src/components/wizard/CalendarPicker";
 import Slider from "@react-native-community/slider";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -30,6 +29,7 @@ import type {
 } from "../src/types/wizard";
 import AppButton from "../src/components/ui/AppButton";
 import SearchingOverlay from "../src/components/wizard/SearchingOverlay";
+import InsufficientCreditsModal from "../src/components/ui/InsufficientCreditsModal";
 import { useCredits } from "../src/providers/CreditsProvider";
 import { usePendingSearch } from "../src/providers/PendingSearchProvider";
 import { useHaptics } from "../src/providers/HapticsProvider";
@@ -285,6 +285,7 @@ export default function AddSearchScreen() {
     apiFilters: {},
   });
   const [error, setError] = useState("");
+  const [creditsModalVisible, setCreditsModalVisible] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [airlineInput, setAirlineInput] = useState("");
 
@@ -333,22 +334,13 @@ export default function AddSearchScreen() {
 
   // Date picker state
   const [activePicker, setActivePicker] = useState<PickerTarget | null>(null);
-  const sheetY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
-  const backdropOpacity = useRef(new Animated.Value(0)).current;
-  const [sheetVisible, setSheetVisible] = useState(false);
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
 
   // Airport search modal state
   const [airportModalVisible, setAirportModalVisible] = useState(false);
   const [airportModalField, setAirportModalField] = useState<
     "origin" | "destination"
   >("origin");
-
-  useEffect(() => {
-    return () => {
-      sheetY.stopAnimation();
-      backdropOpacity.stopAnimation();
-    };
-  }, []);
 
   const updateForm = useCallback((updates: Partial<WizardFormData>) => {
     setFormData((prev) => {
@@ -471,45 +463,15 @@ export default function AddSearchScreen() {
   const openPicker = (target: PickerTarget) => {
     haptics.light();
     setActivePicker(target);
-    setSheetVisible(true);
-    sheetY.setValue(SHEET_HEIGHT);
-    backdropOpacity.setValue(0);
-    Animated.parallel([
-      Animated.spring(sheetY, {
-        toValue: 0,
-        tension: 65,
-        friction: 11,
-        useNativeDriver: true,
-      }),
-      Animated.timing(backdropOpacity, {
-        toValue: 1,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    setDatePickerVisible(true);
   };
 
   const closePicker = () => {
-    Animated.parallel([
-      Animated.timing(sheetY, {
-        toValue: SHEET_HEIGHT,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-      Animated.timing(backdropOpacity, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setSheetVisible(false);
-      setActivePicker(null);
-    });
+    setDatePickerVisible(false);
+    setActivePicker(null);
   };
 
-  const onDateChange = (_event: DateTimePickerEvent, selected?: Date) => {
-    if (Platform.OS === "android") closePicker();
-    if (!selected) return;
+  const onDateChange = (selected: Date) => {
     if (activePicker === "from") {
       const newTo =
         selected >= formData.dateTo ? addDays(selected, 7) : formData.dateTo;
@@ -624,10 +586,20 @@ export default function AddSearchScreen() {
       formData.destination.iata,
     );
 
-    // Fast error (402, 409, 429) — show inline on form
+    // Duplicate search — navigate to the existing result
+    if (result.existingSearchId) {
+      router.replace(`/search/${result.existingSearchId}`);
+      return;
+    }
+
+    // Fast error (402, 429) — show inline on form or credits modal
     if (result.fastError) {
       haptics.error();
-      setError(result.fastError);
+      if (result.insufficientCredits) {
+        setCreditsModalVisible(true);
+      } else {
+        setError(result.fastError);
+      }
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setStep("form");
       return;
@@ -1229,10 +1201,13 @@ export default function AddSearchScreen() {
                     Search: {comboInfo.searchCost} credits
                   </Text>
                   {!comboInfo.canAfford && (
-                    <Text style={styles.creditLineInsufficient}>
-                      Not enough credits — you have {balance ?? 0}, need{" "}
-                      {comboInfo.searchCost}
-                    </Text>
+                    <Pressable onPress={() => setCreditsModalVisible(true)}>
+                      <Text style={styles.creditLineInsufficient}>
+                        Not enough credits — you have {balance ?? 0}, need{" "}
+                        {comboInfo.searchCost}.{" "}
+                        <Text style={styles.creditLineBuyLink}>Buy more</Text>
+                      </Text>
+                    </Pressable>
                   )}
                 </>
               )}
@@ -1269,6 +1244,14 @@ export default function AddSearchScreen() {
           />
         )}
 
+      {/* Insufficient credits modal */}
+      <InsufficientCreditsModal
+        visible={creditsModalVisible}
+        onClose={() => setCreditsModalVisible(false)}
+        needed={comboInfo.searchCost}
+        balance={balance ?? 0}
+      />
+
       {/* Airport search modal */}
       <AirportSearchModal
         visible={airportModalVisible}
@@ -1277,21 +1260,16 @@ export default function AddSearchScreen() {
         onClose={closeAirportModal}
       />
 
-      {/* Bottom sheet date picker */}
-      {sheetVisible && (
-        <View style={styles.pickerOverlay} pointerEvents="box-none">
-          <Animated.View
-            style={[styles.pickerBackdrop, { opacity: backdropOpacity }]}
-          >
-            <Pressable style={StyleSheet.absoluteFill} onPress={closePicker} />
-          </Animated.View>
-
-          <Animated.View
-            style={[
-              styles.pickerSheet,
-              { transform: [{ translateY: sheetY }] },
-            ]}
-          >
+      {/* Bottom sheet date picker — uses Modal to isolate native DateTimePicker */}
+      <Modal
+        visible={datePickerVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={closePicker}
+      >
+        <View style={styles.pickerOverlay}>
+          <Pressable style={styles.pickerBackdrop} onPress={closePicker} />
+          <View style={styles.pickerSheet}>
             <View style={styles.sheetHandle} />
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>
@@ -1302,26 +1280,23 @@ export default function AddSearchScreen() {
               </Pressable>
             </View>
             {activePicker && (
-              <DateTimePicker
+              <CalendarPicker
                 key={activePicker}
                 value={
                   activePicker === "from" ? formData.dateFrom : formData.dateTo
                 }
-                mode="date"
-                display={Platform.OS === "ios" ? "inline" : "default"}
                 minimumDate={
                   activePicker === "to"
                     ? addDays(formData.dateFrom, 1)
                     : new Date()
                 }
-                onChange={onDateChange}
-                themeVariant="light"
                 accentColor="#3B82F6"
+                onChange={onDateChange}
               />
             )}
-          </Animated.View>
+          </View>
         </View>
-      )}
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -1975,6 +1950,11 @@ const styles = StyleSheet.create({
     color: "#DC2626",
     marginTop: 4,
   },
+  creditLineBuyLink: {
+    fontFamily: "Outfit_600SemiBold",
+    color: "#2F9CF4",
+    textDecorationLine: "underline" as const,
+  },
 
   // Error
   errorWrap: {
@@ -1998,11 +1978,10 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
-  // Date picker bottom sheet
+  // Date picker bottom sheet (inside Modal)
   pickerOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
     justifyContent: "flex-end",
-    zIndex: 100,
   },
   pickerBackdrop: {
     ...StyleSheet.absoluteFillObject,
