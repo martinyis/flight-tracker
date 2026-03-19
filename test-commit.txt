@@ -1,1 +1,1 @@
-test file to verify commit authorship
+updated to verify github profile linking
