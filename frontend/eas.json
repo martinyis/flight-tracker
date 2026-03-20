@@ -8,16 +8,29 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
+        "EXPO_PUBLIC_API_URL": "https://flight-tracker-production-c0bb.up.railway.app/api",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "541006511724-n8kkpu2af7djamqcv3f95fku179bqvkc.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "541006511724-9doi917bte93hgln5d86ff33a6bj5ah1.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "949286619491-o6etm64pprte6j89i6b75rqmkiss404j.apps.googleusercontent.com"
       }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://flight-tracker-production-c0bb.up.railway.app/api",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "541006511724-n8kkpu2af7djamqcv3f95fku179bqvkc.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "541006511724-9doi917bte93hgln5d86ff33a6bj5ah1.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "949286619491-o6etm64pprte6j89i6b75rqmkiss404j.apps.googleusercontent.com"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://flight-tracker-production-c0bb.up.railway.app/api",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "541006511724-n8kkpu2af7djamqcv3f95fku179bqvkc.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "541006511724-9doi917bte93hgln5d86ff33a6bj5ah1.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "949286619491-o6etm64pprte6j89i6b75rqmkiss404j.apps.googleusercontent.com"
+      }
     }
   },
   "submit": {

@@ -24,7 +24,7 @@ import {
   jsonApiFilters,
 } from "../../types/prismaJson";
 import { computeSearchCredits, deductCredits, refundCredits } from "../creditService";
-import { parseId, appendPriceHistory, validateApiFilters } from "./helpers";
+import { parseId, appendPriceHistory, validateApiFilters, computeAirlineCodesFromResults, resolveAirlineNamesInFilters } from "./helpers";
 import { buildTrackingCosts } from "./crud";
 
 // ---------------------------------------------------------------------------
@@ -43,13 +43,21 @@ export async function paidRefresh(id: string, userId: string, newApiFilters?: Ap
   const comboCount = search.comboCount ?? 1;
   const creditCost = computeSearchCredits(comboCount);
 
+  // Resolve airline full names → IATA codes and validate BEFORE deducting credits
+  if (newApiFilters) {
+    const results = readLatestResults(search.latestResults) as any[];
+    const nameToCode = computeAirlineCodesFromResults(results, search.tripType);
+    newApiFilters = resolveAirlineNamesInFilters(newApiFilters, nameToCode);
+    validateApiFilters(newApiFilters);
+  }
+
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: uid },
     select: { hasUsedFreeTracking: true },
   });
   const freeTrackingAvailable = !user.hasUsedFreeTracking;
 
-  // Deduct credits upfront
+  // Deduct credits after validation passes
   await deductCredits(
     uid,
     creditCost,
@@ -57,10 +65,6 @@ export async function paidRefresh(id: string, userId: string, newApiFilters?: Ap
     search.id,
     `Re-search: ${search.origin} → ${search.destination}`
   );
-
-  if (newApiFilters) {
-    validateApiFilters(newApiFilters);
-  }
 
   const filters = newApiFilters ? undefined : readSearchFilters(search.filters);
   const searchApiFilters = newApiFilters ?? readApiFilters(search.apiFilters);

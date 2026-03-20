@@ -13,6 +13,7 @@
     "ios": {
       "bundleIdentifier": "com.martinyis.skylens",
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [

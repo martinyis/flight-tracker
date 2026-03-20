@@ -62,6 +62,56 @@ export function appendPriceHistory(
   return [...existing, { date: today, cheapestPrice }];
 }
 
+// ── Airline name → IATA code resolution ──
+
+/** Extract airline name → 2-letter IATA code mapping from stored results */
+export function computeAirlineCodesFromResults(
+  results: any[],
+  tripType: string
+): Record<string, string> {
+  const map: Record<string, string> = {};
+  if (!Array.isArray(results)) return map;
+
+  for (const item of results) {
+    const legs: any[] =
+      tripType === "oneway"
+        ? [item]
+        : [item?.outbound, item?.return].filter(Boolean);
+
+    for (const leg of legs) {
+      if (!Array.isArray(leg?.flights)) continue;
+      for (const f of leg.flights) {
+        if (f?.airline && f?.flight_number && !map[f.airline]) {
+          const match = f.flight_number.match(/^([A-Z0-9]{2})\s/);
+          if (match) map[f.airline] = match[1];
+        }
+      }
+    }
+  }
+  return map;
+}
+
+/** Convert airline full names to IATA codes in API filters, using a name→code map */
+export function resolveAirlineNamesInFilters(
+  filters: ApiFilters,
+  nameToCode: Record<string, string>
+): ApiFilters {
+  const resolve = (codes?: string[]): string[] | undefined => {
+    if (!codes) return undefined;
+    return codes.map((c) => {
+      // Already a 2-letter code or alliance — keep as-is
+      if (/^[A-Z0-9]{2}$/.test(c) || (VALID_ALLIANCES as readonly string[]).includes(c)) return c;
+      // Try to resolve full name → IATA code
+      return nameToCode[c] ?? c;
+    });
+  };
+  return {
+    ...filters,
+    includeAirlines: resolve(filters.includeAirlines),
+    excludeAirlines: resolve(filters.excludeAirlines),
+  };
+}
+
 // ── Logo extraction from stored results ──
 
 export function computeLogosFromResults(

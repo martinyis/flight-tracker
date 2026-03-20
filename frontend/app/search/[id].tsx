@@ -451,6 +451,9 @@ export default function SearchDetailScreen() {
   const [updatingFilter, setUpdatingFilter] = useState(false);
   // Floating Layers: only one strip expanded at a time (-1 = none)
   const [expandedIndex, setExpandedIndex] = useState(-1);
+  // Pagination: how many results to show (load more in batches of 10)
+  const RESULTS_PAGE_SIZE = 10;
+  const [visibleCount, setVisibleCount] = useState(RESULTS_PAGE_SIZE);
 
   // -- Overflow menu --
   const [overflowVisible, setOverflowVisible] = useState(false);
@@ -583,6 +586,7 @@ export default function SearchDetailScreen() {
       const res = await api.get(`/search/${id}`);
       const data = res.data as SavedSearch;
       setSearch(data);
+      setVisibleCount(RESULTS_PAGE_SIZE);
 
       // Check if round-trip data needs return-leg hydration (cron data)
       const isRoundTrip = data.tripType === "roundtrip";
@@ -860,8 +864,24 @@ export default function SearchDetailScreen() {
       setReSearchBags(undefined);
       setReSearchExcludeAirlines(new Set());
     }
+
+    // Pre-exclude airlines the user had locally filtered out
+    const localFilter = search?.filters?.airlines ?? [];
+    if (localFilter.length > 0 && search?.availableAirlines) {
+      const excluded = search.availableAirlines.filter(
+        (a) => !localFilter.includes(a)
+      );
+      if (excluded.length > 0) {
+        setReSearchExcludeAirlines((prev) => {
+          const merged = new Set(prev);
+          excluded.forEach((a) => merged.add(a));
+          return merged;
+        });
+      }
+    }
+
     setReSearchModalVisible(true);
-  }, [search?.apiFilters]);
+  }, [search?.apiFilters, search?.filters?.airlines, search?.availableAirlines]);
 
   const handleReSearch = async () => {
     if (!search) return;
@@ -1542,7 +1562,7 @@ export default function SearchDetailScreen() {
                   <Text style={styles.slabResultsLabel}>
                     {hasActiveFilter
                       ? `${search.latestResults.length} of ${search.comboCount ?? "?"} results`
-                      : `${search.latestResults.length} result${search.latestResults.length !== 1 ? "s" : ""}`}
+                      : `${search.latestResults.length} flight${search.latestResults.length !== 1 ? "s" : ""} found`}
                   </Text>
                   {updatingFilter && (
                     <ActivityIndicator size="small" color="#2F9CF4" />
@@ -1620,7 +1640,7 @@ export default function SearchDetailScreen() {
 
             {/* Flight strips */}
             {isOneWay
-              ? (search.latestResults as FlightLeg[]).map((item, index) => (
+              ? (search.latestResults as FlightLeg[]).slice(0, visibleCount).map((item, index) => (
                   <OneWayStrip
                     key={index}
                     item={item}
@@ -1636,7 +1656,7 @@ export default function SearchDetailScreen() {
                     airlineLogos={search.airlineLogos}
                   />
                 ))
-              : (search.latestResults as Combo[]).map((item, index) => (
+              : (search.latestResults as Combo[]).slice(0, visibleCount).map((item, index) => (
                   <RoundTripStrip
                     key={index}
                     item={item}
@@ -1654,6 +1674,28 @@ export default function SearchDetailScreen() {
                     isHydrating={hydratingIndex === index}
                   />
                 ))}
+
+            {/* View more button */}
+            {search.latestResults.length > visibleCount && (
+              <Pressable
+                onPress={() => {
+                  haptics.light();
+                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                  setVisibleCount((prev) => prev + RESULTS_PAGE_SIZE);
+                }}
+                style={({ pressed }) => [
+                  styles.viewMoreButton,
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Text style={styles.viewMoreText}>
+                  View {Math.min(RESULTS_PAGE_SIZE, search.latestResults.length - visibleCount)} more flight{Math.min(RESULTS_PAGE_SIZE, search.latestResults.length - visibleCount) !== 1 ? "s" : ""}
+                </Text>
+                <Text style={styles.viewMoreCount}>
+                  {visibleCount} of {search.latestResults.length}
+                </Text>
+              </Pressable>
+            )}
           </FloatingLayersContainer>
         </Animated.ScrollView>
       </View>
@@ -2172,6 +2214,28 @@ const styles = StyleSheet.create({
   bottomBarPressed: {
     backgroundColor: "#F8FAFC",
     transform: [{ scale: 0.98 }],
+  },
+  viewMoreButton: {
+    alignItems: "center",
+    paddingVertical: 14,
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(47, 156, 244, 0.2)",
+    backgroundColor: "rgba(47, 156, 244, 0.06)",
+  },
+  viewMoreText: {
+    fontFamily: fonts.semiBold,
+    fontSize: 14,
+    color: "#2F9CF4",
+  },
+  viewMoreCount: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: "#8E9AB0",
+    marginTop: 2,
   },
   bottomBarIcon: {
     width: 36,

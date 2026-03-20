@@ -15,7 +15,7 @@ import {
   jsonLatestResults, jsonRawLegs, jsonApiFilters,
   jsonAvailableAirlines, jsonAirlineLogos, jsonPriceHistory,
 } from "../../types/prismaJson";
-import { parseId, validateApiFilters, appendPriceHistory, computeLogosFromResults } from "./helpers";
+import { parseId, validateApiFilters, appendPriceHistory, computeLogosFromResults, computeAirlineCodesFromResults } from "./helpers";
 import logger from "../../config/logger";
 
 const crudLog = logger.child({ component: "searchCrud" });
@@ -402,12 +402,20 @@ export async function getSearchById(id: string, userId: string) {
         data: { airlineLogos: jsonAirlineLogos(computed) },
       });
       const trackingCosts = buildTrackingCosts(search.comboCount ?? 1, search.dateFrom, freeTrackingAvailable);
-      return { ...search, airlineLogos: jsonAirlineLogos(computed), trackingCosts };
+      const airlineCodes = computeAirlineCodesFromResults(
+        readLatestResults(search.latestResults) as any[],
+        search.tripType
+      );
+      return { ...search, airlineLogos: jsonAirlineLogos(computed), trackingCosts, airlineCodes };
     }
   }
 
   const trackingCosts = buildTrackingCosts(search.comboCount ?? 1, search.dateFrom, freeTrackingAvailable);
-  return { ...search, trackingCosts };
+  const airlineCodes = computeAirlineCodesFromResults(
+    readLatestResults(search.latestResults) as any[],
+    search.tripType
+  );
+  return { ...search, trackingCosts, airlineCodes };
 }
 
 // ---------------------------------------------------------------------------

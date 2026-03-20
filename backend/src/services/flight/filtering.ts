@@ -19,6 +19,20 @@ export function extractAirlines(allLegs: FlightLeg[]): string[] {
   return Array.from(set).sort();
 }
 
+/** Extract a mapping of airline full name → 2-letter IATA code from flight numbers */
+export function extractAirlineCodes(allLegs: FlightLeg[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const leg of allLegs) {
+    for (const f of leg.flights) {
+      if (f.airline && f.flight_number && !map[f.airline]) {
+        const match = f.flight_number.match(/^([A-Z0-9]{2})\s/);
+        if (match) map[f.airline] = match[1];
+      }
+    }
+  }
+  return map;
+}
+
 /** Build a mapping of airline name -> logo URL from raw flight legs */
 export function extractAirlineLogos(allLegs: FlightLeg[]): Record<string, string> {
   const map: Record<string, string> = {};
@@ -99,16 +113,10 @@ export function reduceOneWayFromLegs(
 ): FlightLeg[] {
   const airlineFilter = filters?.airlines ?? [];
 
-  const cheapestByDate = new Map<string, FlightLeg>();
-  for (const leg of legs) {
-    if (!legMatchesAirlineFilter(leg, airlineFilter)) continue;
-    const existing = cheapestByDate.get(leg.date);
-    if (!existing || leg.price < existing.price) {
-      cheapestByDate.set(leg.date, leg);
-    }
-  }
+  const filtered = airlineFilter.length > 0
+    ? legs.filter((leg) => legMatchesAirlineFilter(leg, airlineFilter))
+    : legs;
 
-  const results = Array.from(cheapestByDate.values());
-  results.sort((a, b) => a.price - b.price);
-  return results.slice(0, TOP_RESULTS_LIMIT);
+  const sorted = [...filtered].sort((a, b) => a.price - b.price);
+  return sorted;
 }

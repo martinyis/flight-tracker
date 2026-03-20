@@ -35,6 +35,7 @@ import { usePendingSearch } from "../src/providers/PendingSearchProvider";
 import { useHaptics } from "../src/providers/HapticsProvider";
 import { useAuth } from "../src/providers/AuthProvider";
 import { Check, PlaneTakeoff, PlaneLanding, Calendar, Moon, CornerDownLeft, ChevronRight, ChevronUp, ChevronDown, ArrowRight } from "lucide-react-native";
+import { colors, fonts } from "../src/theme";
 
 // Enable LayoutAnimation on Android
 if (
@@ -128,10 +129,8 @@ const DURATION_OPTIONS = [
   { label: "24h", value: 1440 },
 ];
 
-type PickerTarget = "from" | "to";
-
 const SCREEN_HEIGHT = Dimensions.get("window").height;
-const SHEET_HEIGHT = SCREEN_HEIGHT * 0.55;
+const SHEET_HEIGHT = SCREEN_HEIGHT * 0.58;
 
 // ---------------------------------------------------------------------------
 // Step section IDs
@@ -333,7 +332,6 @@ export default function AddSearchScreen() {
   ]);
 
   // Date picker state
-  const [activePicker, setActivePicker] = useState<PickerTarget | null>(null);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
 
   // Airport search modal state
@@ -460,43 +458,53 @@ export default function AddSearchScreen() {
   // Date picker
   // ---------------------------------------------------------------------------
 
-  const openPicker = (target: PickerTarget) => {
+  // Tabbed picker: "from" first, auto-advances to "to", auto-closes after "to"
+  const [pickerTab, setPickerTab] = useState<"from" | "to">("from");
+
+  const openPicker = (tab: "from" | "to" = "from") => {
     haptics.light();
-    setActivePicker(target);
+    setPickerTab(tab);
     setDatePickerVisible(true);
   };
 
   const closePicker = () => {
     setDatePickerVisible(false);
-    setActivePicker(null);
   };
 
-  const onDateChange = (selected: Date) => {
-    if (activePicker === "from") {
-      const newTo =
-        selected >= formData.dateTo ? addDays(selected, 7) : formData.dateTo;
-      const maxDays = Math.floor(
-        (newTo.getTime() - selected.getTime()) / 86400000
-      );
-      const updates: Partial<WizardFormData> = { dateFrom: selected };
-      if (selected >= formData.dateTo) updates.dateTo = newTo;
-      if (Number(formData.maxNights) > maxDays)
-        updates.maxNights = String(Math.max(1, maxDays));
-      if (Number(formData.minNights) > maxDays)
-        updates.minNights = String(Math.max(1, maxDays));
-      updateForm(updates);
-    } else {
-      const maxDays = Math.floor(
-        (selected.getTime() - formData.dateFrom.getTime()) / 86400000
-      );
-      const updates: Partial<WizardFormData> = { dateTo: selected };
-      if (Number(formData.maxNights) > maxDays)
-        updates.maxNights = String(Math.max(1, maxDays));
-      if (Number(formData.minNights) > maxDays)
-        updates.minNights = String(Math.max(1, maxDays));
-      updateForm(updates);
-    }
-  };
+  const onDateChange = useCallback(
+    (selected: Date) => {
+      if (pickerTab === "from") {
+        const newTo =
+          selected >= formData.dateTo ? addDays(selected, 7) : formData.dateTo;
+        const maxDays = Math.floor(
+          (newTo.getTime() - selected.getTime()) / 86400000
+        );
+        const updates: Partial<WizardFormData> = { dateFrom: selected };
+        if (selected >= formData.dateTo) updates.dateTo = newTo;
+        if (Number(formData.maxNights) > maxDays)
+          updates.maxNights = String(Math.max(1, maxDays));
+        if (Number(formData.minNights) > maxDays)
+          updates.minNights = String(Math.max(1, maxDays));
+        updateForm(updates);
+        // Auto-advance to return tab
+        haptics.selection();
+        setPickerTab("to");
+      } else {
+        const maxDays = Math.floor(
+          (selected.getTime() - formData.dateFrom.getTime()) / 86400000
+        );
+        const updates: Partial<WizardFormData> = { dateTo: selected };
+        if (Number(formData.maxNights) > maxDays)
+          updates.maxNights = String(Math.max(1, maxDays));
+        if (Number(formData.minNights) > maxDays)
+          updates.minNights = String(Math.max(1, maxDays));
+        updateForm(updates);
+        // Auto-close after return date selected
+        closePicker();
+      }
+    },
+    [pickerTab, formData.dateTo, formData.dateFrom, formData.minNights, formData.maxNights, updateForm, haptics]
+  );
 
   const maxPossibleNights = Math.floor(
     (formData.dateTo.getTime() - formData.dateFrom.getTime()) / 86400000
@@ -846,62 +854,38 @@ export default function AddSearchScreen() {
               onHeaderPress={() => goToSection("dates")}
               isLastSection={sectionOrder.indexOf("dates") === sectionOrder.length - 1}
             >
-              {/* Departure date row */}
+              {/* Departure date */}
               <Pressable
                 style={({ pressed }) => [
-                  styles.datePickerRow,
-                  activePicker === "from" && styles.datePickerRowActive,
-                  pressed && styles.datePickerRowPressed,
+                  styles.dateRowCompact,
+                  pressed && styles.dateRowCompactPressed,
                 ]}
                 onPress={() => openPicker("from")}
               >
-                <View style={styles.datePickerIconWrap}>
-                  <LinearGradient
-                    colors={["#DBEAFE", "#EFF6FF"]}
-                    style={styles.datePickerIcon}
-                  >
-                    <Calendar size={16} color="#3B82F6" strokeWidth={2} />
-                  </LinearGradient>
-                </View>
-                <View style={styles.datePickerTextWrap}>
-                  <Text style={styles.datePickerLabel}>Departure</Text>
-                  <Text style={styles.datePickerValue}>
-                    {toLabel(formData.dateFrom)}
-                  </Text>
-                </View>
-                <ChevronRight size={18} color="#94A3B8" strokeWidth={2} />
+                <Calendar size={16} color={colors.primary} strokeWidth={2} />
+                <Text style={styles.dateRowLabel}>Depart</Text>
+                <Text style={styles.dateRowValue}>
+                  {toShortLabel(formData.dateFrom)}
+                </Text>
               </Pressable>
 
               <View style={styles.datesDivider} />
 
-              {/* Return by date row */}
+              {/* Return by date */}
               <Pressable
                 style={({ pressed }) => [
-                  styles.datePickerRow,
-                  activePicker === "to" && styles.datePickerRowActive,
-                  pressed && styles.datePickerRowPressed,
+                  styles.dateRowCompact,
+                  pressed && styles.dateRowCompactPressed,
                 ]}
                 onPress={() => openPicker("to")}
               >
-                <View style={styles.datePickerIconWrap}>
-                  <LinearGradient
-                    colors={["#EFF6FF", "#F0F6FF"]}
-                    style={styles.datePickerIcon}
-                  >
-                    <CornerDownLeft size={16} color="#3B82F6" strokeWidth={2} />
-                  </LinearGradient>
-                </View>
-                <View style={styles.datePickerTextWrap}>
-                  <Text style={styles.datePickerLabel}>
-                    {formData.tripType === "roundtrip"
-                      ? "Latest return by"
-                      : "Latest departure by"}
-                  </Text>
-                  <Text style={styles.datePickerValue}>
-                    {toLabel(formData.dateTo)}
-                  </Text>
-                </View>
-                <ChevronRight size={18} color="#94A3B8" strokeWidth={2} />
+                <CornerDownLeft size={16} color={colors.primary} strokeWidth={2} />
+                <Text style={styles.dateRowLabel}>
+                  {formData.tripType === "roundtrip" ? "Return" : "Latest"}
+                </Text>
+                <Text style={styles.dateRowValue}>
+                  {toShortLabel(formData.dateTo)}
+                </Text>
               </Pressable>
 
               {/* Combo preview pill */}
@@ -1260,7 +1244,7 @@ export default function AddSearchScreen() {
         onClose={closeAirportModal}
       />
 
-      {/* Bottom sheet date picker — uses Modal to isolate native DateTimePicker */}
+      {/* Bottom sheet tabbed date picker */}
       <Modal
         visible={datePickerVisible}
         transparent
@@ -1271,29 +1255,70 @@ export default function AddSearchScreen() {
           <Pressable style={styles.pickerBackdrop} onPress={closePicker} />
           <View style={styles.pickerSheet}>
             <View style={styles.sheetHandle} />
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>
-                {activePicker === "from" ? "Departure Date" : "Return By"}
-              </Text>
-              <Pressable onPress={closePicker} style={styles.sheetDoneBtn}>
-                <Text style={styles.sheetDoneBtnText}>Done</Text>
+
+            {/* Tab bar: Departure / Return */}
+            <View style={styles.pickerTabs}>
+              <Pressable
+                style={[
+                  styles.pickerTab,
+                  pickerTab === "from" && styles.pickerTabActive,
+                ]}
+                onPress={() => setPickerTab("from")}
+              >
+                <Text
+                  style={[
+                    styles.pickerTabLabel,
+                    pickerTab === "from" && styles.pickerTabLabelActive,
+                  ]}
+                >
+                  Departure
+                </Text>
+                <Text
+                  style={[
+                    styles.pickerTabDate,
+                    pickerTab === "from" && styles.pickerTabDateActive,
+                  ]}
+                >
+                  {toShortLabel(formData.dateFrom)}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.pickerTab,
+                  pickerTab === "to" && styles.pickerTabActive,
+                ]}
+                onPress={() => setPickerTab("to")}
+              >
+                <Text
+                  style={[
+                    styles.pickerTabLabel,
+                    pickerTab === "to" && styles.pickerTabLabelActive,
+                  ]}
+                >
+                  {formData.tripType === "roundtrip" ? "Return by" : "Latest by"}
+                </Text>
+                <Text
+                  style={[
+                    styles.pickerTabDate,
+                    pickerTab === "to" && styles.pickerTabDateActive,
+                  ]}
+                >
+                  {toShortLabel(formData.dateTo)}
+                </Text>
               </Pressable>
             </View>
-            {activePicker && (
-              <CalendarPicker
-                key={activePicker}
-                value={
-                  activePicker === "from" ? formData.dateFrom : formData.dateTo
-                }
-                minimumDate={
-                  activePicker === "to"
-                    ? addDays(formData.dateFrom, 1)
-                    : new Date()
-                }
-                accentColor="#3B82F6"
-                onChange={onDateChange}
-              />
-            )}
+
+            <CalendarPicker
+              key={pickerTab}
+              value={pickerTab === "from" ? formData.dateFrom : formData.dateTo}
+              minimumDate={
+                pickerTab === "to"
+                  ? addDays(formData.dateFrom, 1)
+                  : new Date()
+              }
+              accentColor={colors.primary}
+              onChange={onDateChange}
+            />
           </View>
         </View>
       </Modal>
@@ -1637,53 +1662,6 @@ const styles = StyleSheet.create({
   },
 
   // Date picker rows
-  datePickerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-  },
-  datePickerRowActive: {
-    backgroundColor: "rgba(59, 130, 246, 0.04)",
-  },
-  datePickerRowPressed: {
-    backgroundColor: "rgba(59, 130, 246, 0.04)",
-  },
-  datePickerIconWrap: {
-    marginRight: 14,
-  },
-  datePickerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  datePickerIconText: {
-    fontFamily: "Outfit_500Medium",
-    fontSize: 16,
-    color: "#3B82F6",
-  },
-  datePickerTextWrap: {
-    flex: 1,
-  },
-  datePickerLabel: {
-    fontFamily: "Outfit_500Medium",
-    fontSize: 12,
-    color: "#94A3B8",
-    marginBottom: 3,
-  },
-  datePickerValue: {
-    fontFamily: "Outfit_700Bold",
-    fontSize: 17,
-    color: "#0F172A",
-  },
-  datePickerChevron: {
-    fontFamily: "Outfit_300Light",
-    fontSize: 22,
-    color: "#CBD5E1",
-    marginLeft: 8,
-  },
   datesDivider: {
     height: 1,
     backgroundColor: "#F1F5F9",
@@ -1985,7 +1963,7 @@ const styles = StyleSheet.create({
   },
   pickerBackdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(15, 23, 42, 0.3)",
+    backgroundColor: "transparent",
   },
   pickerSheet: {
     height: SHEET_HEIGHT,
@@ -2007,27 +1985,69 @@ const styles = StyleSheet.create({
     backgroundColor: "#CBD5E1",
     alignSelf: "center",
     marginTop: 10,
-    marginBottom: 12,
-  },
-  sheetHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     marginBottom: 8,
-    paddingVertical: 4,
   },
-  sheetTitle: {
-    fontFamily: "Outfit_700Bold",
-    fontSize: 17,
-    color: "#0F172A",
+
+  // Tabbed picker tabs
+  pickerTabs: {
+    flexDirection: "row",
+    marginBottom: 8,
+    gap: 8,
   },
-  sheetDoneBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+  pickerTab: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
   },
-  sheetDoneBtnText: {
+  pickerTabActive: {
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1.5,
+    borderColor: "#2F9CF4",
+  },
+  pickerTabLabel: {
+    fontFamily: "Outfit_500Medium",
+    fontSize: 11,
+    color: "#94A3B8",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  pickerTabLabelActive: {
+    color: "#2F9CF4",
+  },
+  pickerTabDate: {
     fontFamily: "Outfit_700Bold",
     fontSize: 16,
-    color: "#3B82F6",
+    color: "#64748B",
+  },
+  pickerTabDateActive: {
+    color: "#0F172A",
+  },
+
+  // Compact date rows in wizard
+  dateRowCompact: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  dateRowCompactPressed: {
+    backgroundColor: "rgba(59, 130, 246, 0.04)",
+  },
+  dateRowLabel: {
+    fontFamily: "Outfit_500Medium",
+    fontSize: 14,
+    color: "#64748B",
+    width: 52,
+  },
+  dateRowValue: {
+    fontFamily: "Outfit_700Bold",
+    fontSize: 16,
+    color: "#0F172A",
+    flex: 1,
   },
 });
