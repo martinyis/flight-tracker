@@ -25,6 +25,7 @@ import {
 } from "../../types/prismaJson";
 import { computeSearchCredits, deductCredits, refundCredits } from "../creditService";
 import { parseId, appendPriceHistory, validateApiFilters, computeAirlineCodesFromResults, resolveAirlineNamesInFilters } from "./helpers";
+import { extractAirlineCodes } from "../flight/filtering";
 import { buildTrackingCosts } from "./crud";
 import logger from "../../config/logger";
 
@@ -48,11 +49,26 @@ export async function paidRefresh(id: string, userId: string, newApiFilters?: Ap
 
   // Resolve airline full names → IATA codes and validate BEFORE deducting credits
   if (newApiFilters) {
+    // Try extracting codes from latestResults first
     const results = readLatestResults(search.latestResults) as any[];
-    const nameToCode = computeAirlineCodesFromResults(results, search.tripType);
+    let nameToCode = computeAirlineCodesFromResults(results, search.tripType);
+
+    // Fallback: extract from rawLegs (always has full flight data)
+    if (Object.keys(nameToCode).length === 0 && search.rawLegs) {
+      const raw = search.rawLegs as any;
+      let legs: FlightLeg[] = [];
+      if (raw?.outbound && Array.isArray(raw.outbound)) {
+        legs = raw.outbound;
+      } else if (Array.isArray(raw)) {
+        legs = raw.flatMap((c: any) => [c.outbound, c.return].filter(Boolean));
+      }
+      if (legs.length > 0) {
+        nameToCode = extractAirlineCodes(legs);
+      }
+    }
+
     opsLog.info({ searchId, nameToCode, incomingFilters: newApiFilters }, "paidRefresh: resolving airline names");
     newApiFilters = resolveAirlineNamesInFilters(newApiFilters, nameToCode);
-    opsLog.info({ resolvedFilters: newApiFilters }, "paidRefresh: resolved filters");
     validateApiFilters(newApiFilters);
   }
 
