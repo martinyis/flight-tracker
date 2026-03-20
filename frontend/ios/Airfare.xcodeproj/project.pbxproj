@@ -8,11 +8,11 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		355FB01386BF69EB33228A7F /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DB9C107542082FDE5F649EE /* ExpoModulesProvider.swift */; };
+		27A058B5D3FAF8B9F414FFD0 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FE7A23711277BF4BAF0FFBF /* ExpoModulesProvider.swift */; };
+		29A114BC2F83C234A9B446F0 /* libPods-Airfare.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 24A54AD5DC4717F3D1106643 /* libPods-Airfare.a */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		64956BF82FB0F47CFEE89D61 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A4800FB24E10976901E3263F /* PrivacyInfo.xcprivacy */; };
+		8117144A24923807D10B2CD9 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 776E672691BEA51938CB86B6 /* PrivacyInfo.xcprivacy */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		CFE21BD2AAC2A70BF35A5861 /* libPods-Airfare.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 377CF48BB20C308071C9E3D6 /* libPods-Airfare.a */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
@@ -20,13 +20,13 @@
 		13B07F961A680F5B00A75B9A /* Airfare.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Airfare.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Airfare/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Airfare/Info.plist; sourceTree = "<group>"; };
-		16B618FB9D527D1F381AFA32 /* Pods-Airfare.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Airfare.release.xcconfig"; path = "Target Support Files/Pods-Airfare/Pods-Airfare.release.xcconfig"; sourceTree = "<group>"; };
-		377CF48BB20C308071C9E3D6 /* libPods-Airfare.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Airfare.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		7DB9C107542082FDE5F649EE /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Airfare/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		A4800FB24E10976901E3263F /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Airfare/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		24A54AD5DC4717F3D1106643 /* libPods-Airfare.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Airfare.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		776E672691BEA51938CB86B6 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Airfare/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		7FE7A23711277BF4BAF0FFBF /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Airfare/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Airfare/SplashScreen.storyboard; sourceTree = "<group>"; };
-		B2169CF611E2B580EEA403D6 /* Pods-Airfare.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Airfare.debug.xcconfig"; path = "Target Support Files/Pods-Airfare/Pods-Airfare.debug.xcconfig"; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
+		BEC07F1563E5FD16834582F5 /* Pods-Airfare.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Airfare.release.xcconfig"; path = "Target Support Files/Pods-Airfare/Pods-Airfare.release.xcconfig"; sourceTree = "<group>"; };
+		C2F3A8A070A690C7D32066A9 /* Pods-Airfare.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Airfare.debug.xcconfig"; path = "Target Support Files/Pods-Airfare/Pods-Airfare.debug.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Airfare/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* Airfare-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Airfare-Bridging-Header.h"; path = "Airfare/Airfare-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -37,7 +37,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CFE21BD2AAC2A70BF35A5861 /* libPods-Airfare.a in Frameworks */,
+				29A114BC2F83C234A9B446F0 /* libPods-Airfare.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -53,7 +53,7 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				A4800FB24E10976901E3263F /* PrivacyInfo.xcprivacy */,
+				776E672691BEA51938CB86B6 /* PrivacyInfo.xcprivacy */,
 			);
 			name = Airfare;
 			sourceTree = "<group>";
@@ -62,35 +62,27 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				377CF48BB20C308071C9E3D6 /* libPods-Airfare.a */,
+				24A54AD5DC4717F3D1106643 /* libPods-Airfare.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		340BDC01E10907CBC9F8B577 /* Airfare */ = {
+		6B5E69B0A6E76389562A516E /* ExpoModulesProviders */ = {
 			isa = PBXGroup;
 			children = (
-				7DB9C107542082FDE5F649EE /* ExpoModulesProvider.swift */,
+				AB884C2BBBD9FE5F1FE81CB5 /* Airfare */,
 			);
-			name = Airfare;
+			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
-		7B4E914303D0DE7B7F3F864E /* Pods */ = {
+		74230DC95D1B42BC3B08955A /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				B2169CF611E2B580EEA403D6 /* Pods-Airfare.debug.xcconfig */,
-				16B618FB9D527D1F381AFA32 /* Pods-Airfare.release.xcconfig */,
+				C2F3A8A070A690C7D32066A9 /* Pods-Airfare.debug.xcconfig */,
+				BEC07F1563E5FD16834582F5 /* Pods-Airfare.release.xcconfig */,
 			);
 			name = Pods;
 			path = Pods;
-			sourceTree = "<group>";
-		};
-		7F896B811620FDAB8EAF4573 /* ExpoModulesProviders */ = {
-			isa = PBXGroup;
-			children = (
-				340BDC01E10907CBC9F8B577 /* Airfare */,
-			);
-			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -107,8 +99,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				7B4E914303D0DE7B7F3F864E /* Pods */,
-				7F896B811620FDAB8EAF4573 /* ExpoModulesProviders */,
+				74230DC95D1B42BC3B08955A /* Pods */,
+				6B5E69B0A6E76389562A516E /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -121,6 +113,14 @@
 				13B07F961A680F5B00A75B9A /* Airfare.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		AB884C2BBBD9FE5F1FE81CB5 /* Airfare */ = {
+			isa = PBXGroup;
+			children = (
+				7FE7A23711277BF4BAF0FFBF /* ExpoModulesProvider.swift */,
+			);
+			name = Airfare;
 			sourceTree = "<group>";
 		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
@@ -140,13 +140,13 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "Airfare" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				AD5517FEF7ABA1CF7B866D0F /* [Expo] Configure project */,
+				7EFF90101456A6E47DB17195 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				97A51052A89F4B0466280B7A /* [CP] Embed Pods Frameworks */,
+				F381B80C6FE8B6535465BB13 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -196,7 +196,7 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				64956BF82FB0F47CFEE89D61 /* PrivacyInfo.xcprivacy in Resources */,
+				8117144A24923807D10B2CD9 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -242,6 +242,30 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
+		7EFF90101456A6E47DB17195 /* [Expo] Configure project */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/.xcode.env",
+				"$(SRCROOT)/.xcode.env.local",
+				"$(SRCROOT)/Airfare/Airfare.entitlements",
+				"$(SRCROOT)/Pods/Target Support Files/Pods-Airfare/expo-configure-project.sh",
+			);
+			name = "[Expo] Configure project";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Pods/Target Support Files/Pods-Airfare/ExpoModulesProvider.swift",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-Airfare/expo-configure-project.sh\"\n";
+		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -284,7 +308,7 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Airfare/Pods-Airfare-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		97A51052A89F4B0466280B7A /* [CP] Embed Pods Frameworks */ = {
+		F381B80C6FE8B6535465BB13 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -306,30 +330,6 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Airfare/Pods-Airfare-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		AD5517FEF7ABA1CF7B866D0F /* [Expo] Configure project */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/.xcode.env",
-				"$(SRCROOT)/.xcode.env.local",
-				"$(SRCROOT)/Airfare/Airfare.entitlements",
-				"$(SRCROOT)/Pods/Target Support Files/Pods-Airfare/expo-configure-project.sh",
-			);
-			name = "[Expo] Configure project";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(SRCROOT)/Pods/Target Support Files/Pods-Airfare/ExpoModulesProvider.swift",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-Airfare/expo-configure-project.sh\"\n";
-		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -338,7 +338,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				355FB01386BF69EB33228A7F /* ExpoModulesProvider.swift in Sources */,
+				27A058B5D3FAF8B9F414FFD0 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -347,7 +347,7 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = B2169CF611E2B580EEA403D6 /* Pods-Airfare.debug.xcconfig */;
+			baseConfigurationReference = C2F3A8A070A690C7D32066A9 /* Pods-Airfare.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -384,7 +384,7 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 16B618FB9D527D1F381AFA32 /* Pods-Airfare.release.xcconfig */;
+			baseConfigurationReference = BEC07F1563E5FD16834582F5 /* Pods-Airfare.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;

@@ -573,6 +573,17 @@ export default function SettingsScreen() {
             <View style={s.emptyWrap}>
               <Text style={s.emptyTitle}>Couldn't load profile</Text>
               <Text style={s.emptySubtitle}>Pull down to try again</Text>
+              <Pressable
+                style={({ pressed }) => [
+                  s.signOutButton,
+                  { marginTop: 32, width: "100%" },
+                  pressed && s.signOutButtonPressed,
+                ]}
+                onPress={() => { haptics.medium(); logout(); }}
+              >
+                <LogOut size={18} color={C.error600} strokeWidth={2} />
+                <Text style={s.signOutText}>Sign out</Text>
+              </Pressable>
             </View>
           )}
         </ScrollView>
