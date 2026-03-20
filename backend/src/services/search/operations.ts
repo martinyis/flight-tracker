@@ -26,6 +26,9 @@ import {
 import { computeSearchCredits, deductCredits, refundCredits } from "../creditService";
 import { parseId, appendPriceHistory, validateApiFilters, computeAirlineCodesFromResults, resolveAirlineNamesInFilters } from "./helpers";
 import { buildTrackingCosts } from "./crud";
+import logger from "../../config/logger";
+
+const opsLog = logger.child({ component: "searchOps" });
 
 // ---------------------------------------------------------------------------
 // Paid refresh — re-search SerpAPI with credit deduction (no tracking required)
@@ -47,7 +50,9 @@ export async function paidRefresh(id: string, userId: string, newApiFilters?: Ap
   if (newApiFilters) {
     const results = readLatestResults(search.latestResults) as any[];
     const nameToCode = computeAirlineCodesFromResults(results, search.tripType);
+    opsLog.info({ searchId, nameToCode, incomingFilters: newApiFilters }, "paidRefresh: resolving airline names");
     newApiFilters = resolveAirlineNamesInFilters(newApiFilters, nameToCode);
+    opsLog.info({ resolvedFilters: newApiFilters }, "paidRefresh: resolved filters");
     validateApiFilters(newApiFilters);
   }
 

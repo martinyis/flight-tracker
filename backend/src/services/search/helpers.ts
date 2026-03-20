@@ -82,7 +82,7 @@ export function computeAirlineCodesFromResults(
       if (!Array.isArray(leg?.flights)) continue;
       for (const f of leg.flights) {
         if (f?.airline && f?.flight_number && !map[f.airline]) {
-          const match = f.flight_number.match(/^([A-Z0-9]{2})\s/);
+          const match = f.flight_number.match(/^([A-Z0-9]{2})[\s\-]?\d/);
           if (match) map[f.airline] = match[1];
         }
       }

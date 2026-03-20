@@ -101,6 +101,7 @@ interface SavedSearch {
   apiFilters?: ApiFilters;
   availableAirlines: string[];
   airlineLogos?: Record<string, string>;
+  airlineCodes?: Record<string, string>;
   trackingActive?: boolean;
   trackingPaid?: boolean;
   comboCount?: number;
@@ -902,7 +903,10 @@ export default function SearchDetailScreen() {
     if (reSearchMaxDuration && reSearchMaxDuration > 0) apiFilters.maxDuration = reSearchMaxDuration;
     if (reSearchBags) apiFilters.bags = reSearchBags;
     if (reSearchExcludeAirlines.size > 0) {
-      apiFilters.excludeAirlines = Array.from(reSearchExcludeAirlines);
+      const codes = search?.airlineCodes ?? {};
+      apiFilters.excludeAirlines = Array.from(reSearchExcludeAirlines).map(
+        (name) => codes[name] ?? name
+      );
     }
     const hasFilters = Object.keys(apiFilters).length > 0;
 
