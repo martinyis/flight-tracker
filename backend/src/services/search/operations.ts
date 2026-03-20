@@ -53,6 +53,21 @@ export async function paidRefresh(id: string, userId: string, newApiFilters?: Ap
     const results = readLatestResults(search.latestResults) as any[];
     let nameToCode = computeAirlineCodesFromResults(results, search.tripType);
 
+    // Debug: log actual data structure
+    if (results.length > 0) {
+      const first = results[0];
+      opsLog.info({
+        searchId,
+        resultKeys: Object.keys(first),
+        hasFlights: Array.isArray(first?.flights),
+        flightsCount: first?.flights?.length ?? 0,
+        firstFlight: first?.flights?.[0] ? {
+          airline: first.flights[0].airline,
+          flight_number: first.flights[0].flight_number,
+        } : null,
+      }, "paidRefresh: data structure debug");
+    }
+
     // Fallback: extract from rawLegs (always has full flight data)
     if (Object.keys(nameToCode).length === 0 && search.rawLegs) {
       const raw = search.rawLegs as any;
@@ -64,11 +79,29 @@ export async function paidRefresh(id: string, userId: string, newApiFilters?: Ap
       }
       if (legs.length > 0) {
         nameToCode = extractAirlineCodes(legs);
+        opsLog.info({ searchId, rawLegsCodesFound: nameToCode }, "paidRefresh: rawLegs fallback");
       }
     }
 
     opsLog.info({ searchId, nameToCode, incomingFilters: newApiFilters }, "paidRefresh: resolving airline names");
     newApiFilters = resolveAirlineNamesInFilters(newApiFilters, nameToCode);
+
+    // Strip any airline names that couldn't be resolved to IATA codes instead of crashing
+    const stripUnresolved = (codes?: string[]): string[] | undefined => {
+      if (!codes) return undefined;
+      const valid = codes.filter(c => /^[A-Z0-9]{2}$/.test(c) || ["STAR_ALLIANCE", "SKYTEAM", "ONEWORLD"].includes(c));
+      if (valid.length < codes.length) {
+        const dropped = codes.filter(c => !valid.includes(c));
+        opsLog.warn({ searchId, dropped }, "paidRefresh: dropped unresolvable airline names from filter");
+      }
+      return valid.length > 0 ? valid : undefined;
+    };
+    newApiFilters = {
+      ...newApiFilters,
+      includeAirlines: stripUnresolved(newApiFilters.includeAirlines),
+      excludeAirlines: stripUnresolved(newApiFilters.excludeAirlines),
+    };
+
     validateApiFilters(newApiFilters);
   }
 
