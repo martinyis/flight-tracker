@@ -120,10 +120,14 @@ function parseLeg(group: any, date: string): FlightLeg {
   const first = flights[0];
   const last = flights[flights.length - 1];
 
+  // Extract IATA code from first flight number (e.g. "WN 1234" → "WN")
+  const airlineCode = first?.flight_number?.match(/^([A-Z0-9]{2})/)?.[1] ?? undefined;
+
   return {
     date,
     price: group.price,
     airline: first.airline,
+    airline_code: airlineCode,
     airline_logo: group.airline_logo || first.airline_logo,
     departure_time: first.departure_airport.time,
     arrival_time: last.arrival_airport.time,

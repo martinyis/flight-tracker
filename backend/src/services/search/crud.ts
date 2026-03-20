@@ -13,8 +13,9 @@ import { BadRequestError, NotFoundError, ConflictError } from "../../errors/AppE
 import { COMBO_HARD_CAP, DEDUP_WINDOW_MS } from "../../config/constants";
 import {
   jsonLatestResults, jsonRawLegs, jsonApiFilters,
-  jsonAvailableAirlines, jsonAirlineLogos, jsonPriceHistory,
+  jsonAvailableAirlines, jsonAirlineLogos, jsonAirlineCodes, jsonPriceHistory,
 } from "../../types/prismaJson";
+import { extractAirlineCodes } from "../flight/filtering";
 import { parseId, validateApiFilters, appendPriceHistory, computeLogosFromResults, computeAirlineCodesFromResults } from "./helpers";
 import logger from "../../config/logger";
 
@@ -217,6 +218,7 @@ export async function createSavedSearch(
           cheapestPrice,
           availableAirlines: jsonAvailableAirlines(availableAirlines),
           airlineLogos: jsonAirlineLogos(airlineLogos),
+          airlineCodes: jsonAirlineCodes(extractAirlineCodes(rawLegs)),
           lastCheckedAt: new Date(),
           nextCheckAt: computeNextCheckAt(search.dateFrom),
           priceHistory: jsonPriceHistory(appendPriceHistory([], cheapestPrice)),
@@ -259,6 +261,7 @@ export async function createSavedSearch(
         );
       }
 
+      const rtLegs = allRawOptions.flatMap((o: any) => [o.outbound, o.return].filter(Boolean));
       search = await prisma.savedSearch.update({
         where: { id: search.id },
         data: {
@@ -267,6 +270,7 @@ export async function createSavedSearch(
           cheapestPrice,
           availableAirlines: jsonAvailableAirlines(availableAirlines),
           airlineLogos: jsonAirlineLogos(airlineLogos),
+          airlineCodes: jsonAirlineCodes(extractAirlineCodes(rtLegs)),
           lastCheckedAt: new Date(),
           nextCheckAt: computeNextCheckAt(search.dateFrom),
           priceHistory: jsonPriceHistory(appendPriceHistory([], cheapestPrice)),
@@ -402,19 +406,23 @@ export async function getSearchById(id: string, userId: string) {
         data: { airlineLogos: jsonAirlineLogos(computed) },
       });
       const trackingCosts = buildTrackingCosts(search.comboCount ?? 1, search.dateFrom, freeTrackingAvailable);
-      const airlineCodes = computeAirlineCodesFromResults(
-        readLatestResults(search.latestResults) as any[],
-        search.tripType
-      );
+      let airlineCodes = (search.airlineCodes ?? {}) as Record<string, string>;
+      if (Object.keys(airlineCodes).length === 0) {
+        airlineCodes = computeAirlineCodesFromResults(readLatestResults(search.latestResults) as any[], search.tripType);
+      }
       return { ...search, airlineLogos: jsonAirlineLogos(computed), trackingCosts, airlineCodes };
     }
   }
 
   const trackingCosts = buildTrackingCosts(search.comboCount ?? 1, search.dateFrom, freeTrackingAvailable);
-  const airlineCodes = computeAirlineCodesFromResults(
-    readLatestResults(search.latestResults) as any[],
-    search.tripType
-  );
+  // Read persisted airlineCodes; fall back to on-the-fly computation for pre-migration data
+  let airlineCodes = (search.airlineCodes ?? {}) as Record<string, string>;
+  if (Object.keys(airlineCodes).length === 0) {
+    airlineCodes = computeAirlineCodesFromResults(
+      readLatestResults(search.latestResults) as any[],
+      search.tripType
+    );
+  }
   return { ...search, trackingCosts, airlineCodes };
 }
 

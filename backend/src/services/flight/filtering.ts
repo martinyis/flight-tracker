@@ -19,13 +19,18 @@ export function extractAirlines(allLegs: FlightLeg[]): string[] {
   return Array.from(set).sort();
 }
 
-/** Extract a mapping of airline full name → 2-letter IATA code from flight numbers */
+/** Extract a mapping of airline full name → 2-letter IATA code from flight legs */
 export function extractAirlineCodes(allLegs: FlightLeg[]): Record<string, string> {
   const map: Record<string, string> = {};
   for (const leg of allLegs) {
+    // Layer 2: use pre-extracted airline_code from parseLeg()
+    if (leg.airline && leg.airline_code && !map[leg.airline]) {
+      map[leg.airline] = leg.airline_code;
+    }
+    // Fallback: parse from flight_number
     for (const f of leg.flights) {
       if (f.airline && f.flight_number && !map[f.airline]) {
-        const match = f.flight_number.match(/^([A-Z0-9]{2})\s/);
+        const match = f.flight_number.match(/^([A-Z0-9]{2})/);
         if (match) map[f.airline] = match[1];
       }
     }

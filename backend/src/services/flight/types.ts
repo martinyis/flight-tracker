@@ -13,6 +13,7 @@ export interface FlightLeg {
   date: string;
   price: number;
   airline: string;
+  airline_code?: string;
   airline_logo?: string;
   departure_time: string;
   arrival_time: string;

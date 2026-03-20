@@ -46,6 +46,7 @@ model SavedSearch {
   apiFilters        Json      @default("{}") @map("api_filters")
   availableAirlines Json      @default("[]") @map("available_airlines")
   airlineLogos      Json      @default("{}") @map("airline_logos")
+  airlineCodes      Json      @default("{}") @map("airline_codes")
   rawLegs           Json      @default("{\"outbound\":[],\"return\":[]}") @map("raw_legs")
   priceHistory      Json      @default("[]") @map("price_history")
   nextCheckAt       DateTime? @map("next_check_at")

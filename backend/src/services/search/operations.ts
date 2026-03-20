@@ -21,11 +21,12 @@ import { REFRESH_MIN_INTERVAL_MS, TOP_RESULTS_LIMIT } from "../../config/constan
 import {
   jsonLatestResults, jsonRawLegs, jsonFilters,
   jsonAvailableAirlines, jsonAirlineLogos, jsonPriceHistory,
-  jsonApiFilters,
+  jsonApiFilters, jsonAirlineCodes,
 } from "../../types/prismaJson";
 import { computeSearchCredits, deductCredits, refundCredits } from "../creditService";
-import { parseId, appendPriceHistory, validateApiFilters, computeAirlineCodesFromResults, resolveAirlineNamesInFilters } from "./helpers";
+import { parseId, appendPriceHistory, validateApiFilters, resolveAirlineNamesInFilters } from "./helpers";
 import { extractAirlineCodes } from "../flight/filtering";
+import { AIRLINE_NAME_TO_CODE } from "../../config/constants";
 import { buildTrackingCosts } from "./crud";
 import logger from "../../config/logger";
 
@@ -47,61 +48,25 @@ export async function paidRefresh(id: string, userId: string, newApiFilters?: Ap
   const comboCount = search.comboCount ?? 1;
   const creditCost = computeSearchCredits(comboCount);
 
-  // Resolve airline full names → IATA codes and validate BEFORE deducting credits
+  // 3-layer airline name → IATA code resolution BEFORE deducting credits
   if (newApiFilters) {
-    // Try extracting codes from latestResults first
-    const results = readLatestResults(search.latestResults) as any[];
-    let nameToCode = computeAirlineCodesFromResults(results, search.tripType);
+    // Layer 1: read persisted airlineCodes column
+    let nameToCode: Record<string, string> = (search.airlineCodes as Record<string, string>) ?? {};
 
-    // Debug: log actual data structure
-    if (results.length > 0) {
-      const first = results[0];
-      opsLog.info({
-        searchId,
-        resultKeys: Object.keys(first),
-        hasFlights: Array.isArray(first?.flights),
-        flightsCount: first?.flights?.length ?? 0,
-        firstFlight: first?.flights?.[0] ? {
-          airline: first.flights[0].airline,
-          flight_number: first.flights[0].flight_number,
-        } : null,
-      }, "paidRefresh: data structure debug");
-    }
-
-    // Fallback: extract from rawLegs (always has full flight data)
+    // Layer 2: extract from rawLegs if column is empty (pre-migration data)
     if (Object.keys(nameToCode).length === 0 && search.rawLegs) {
       const raw = search.rawLegs as any;
       let legs: FlightLeg[] = [];
-      if (raw?.outbound && Array.isArray(raw.outbound)) {
-        legs = raw.outbound;
-      } else if (Array.isArray(raw)) {
-        legs = raw.flatMap((c: any) => [c.outbound, c.return].filter(Boolean));
-      }
-      if (legs.length > 0) {
-        nameToCode = extractAirlineCodes(legs);
-        opsLog.info({ searchId, rawLegsCodesFound: nameToCode }, "paidRefresh: rawLegs fallback");
-      }
+      if (raw?.outbound && Array.isArray(raw.outbound)) legs = raw.outbound;
+      else if (Array.isArray(raw)) legs = raw.flatMap((c: any) => [c.outbound, c.return].filter(Boolean));
+      if (legs.length > 0) nameToCode = extractAirlineCodes(legs);
     }
+
+    // Layer 3: merge static fallback dictionary (lowest priority)
+    nameToCode = { ...AIRLINE_NAME_TO_CODE, ...nameToCode };
 
     opsLog.info({ searchId, nameToCode, incomingFilters: newApiFilters }, "paidRefresh: resolving airline names");
     newApiFilters = resolveAirlineNamesInFilters(newApiFilters, nameToCode);
-
-    // Strip any airline names that couldn't be resolved to IATA codes instead of crashing
-    const stripUnresolved = (codes?: string[]): string[] | undefined => {
-      if (!codes) return undefined;
-      const valid = codes.filter(c => /^[A-Z0-9]{2}$/.test(c) || ["STAR_ALLIANCE", "SKYTEAM", "ONEWORLD"].includes(c));
-      if (valid.length < codes.length) {
-        const dropped = codes.filter(c => !valid.includes(c));
-        opsLog.warn({ searchId, dropped }, "paidRefresh: dropped unresolvable airline names from filter");
-      }
-      return valid.length > 0 ? valid : undefined;
-    };
-    newApiFilters = {
-      ...newApiFilters,
-      includeAirlines: stripUnresolved(newApiFilters.includeAirlines),
-      excludeAirlines: stripUnresolved(newApiFilters.excludeAirlines),
-    };
-
     validateApiFilters(newApiFilters);
   }
 
@@ -152,6 +117,7 @@ export async function paidRefresh(id: string, userId: string, newApiFilters?: Ap
           cheapestPrice,
           availableAirlines: jsonAvailableAirlines(availableAirlines),
           airlineLogos: jsonAirlineLogos(airlineLogos),
+          airlineCodes: jsonAirlineCodes(extractAirlineCodes(rawLegs)),
           lastCheckedAt: new Date(),
           priceHistory: jsonPriceHistory(appendPriceHistory(existingHistory, cheapestPrice)),
           searchCredits: (search.searchCredits ?? 0) + (tooFewResults ? 0 : creditCost),
@@ -195,6 +161,7 @@ export async function paidRefresh(id: string, userId: string, newApiFilters?: Ap
           cheapestPrice,
           availableAirlines: jsonAvailableAirlines(availableAirlines),
           airlineLogos: jsonAirlineLogos(airlineLogos),
+          airlineCodes: jsonAirlineCodes(extractAirlineCodes(allRawOptions.flatMap((o: any) => [o.outbound, o.return].filter(Boolean)))),
           lastCheckedAt: new Date(),
           priceHistory: jsonPriceHistory(appendPriceHistory(existingHistory, cheapestPrice)),
           searchCredits: (search.searchCredits ?? 0) + (tooFewResults ? 0 : creditCost),
@@ -279,6 +246,7 @@ export async function refreshSearch(
         cheapestPrice,
         availableAirlines: jsonAvailableAirlines(availableAirlines),
         airlineLogos: jsonAirlineLogos(airlineLogos),
+        airlineCodes: jsonAirlineCodes(extractAirlineCodes(rawLegs)),
         lastCheckedAt: new Date(),
         priceHistory: jsonPriceHistory(appendPriceHistory(existingHistory, cheapestPrice)),
         ...(resetFilter && { filters: jsonFilters({}) }),
@@ -307,6 +275,7 @@ export async function refreshSearch(
         cheapestPrice,
         availableAirlines: jsonAvailableAirlines(availableAirlines),
         airlineLogos: jsonAirlineLogos(airlineLogos),
+        airlineCodes: jsonAirlineCodes(extractAirlineCodes(allRawOptions.flatMap((o: any) => [o.outbound, o.return].filter(Boolean)))),
         lastCheckedAt: new Date(),
         priceHistory: jsonPriceHistory(appendPriceHistory(existingHistory, cheapestPrice)),
         ...(resetFilter && { filters: jsonFilters({}) }),
@@ -436,6 +405,7 @@ export async function hydrateSearch(id: string, userId: string) {
       cheapestPrice,
       availableAirlines: jsonAvailableAirlines(availableAirlines),
       airlineLogos: jsonAirlineLogos(airlineLogos),
+      airlineCodes: jsonAirlineCodes(extractAirlineCodes(combos.flatMap(c => [c.outbound, c.return]))),
     },
     omit: { rawLegs: true },
   });

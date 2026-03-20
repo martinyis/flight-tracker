@@ -40,6 +40,10 @@ export function jsonAirlineLogos(logos: Record<string, string>): any {
   return toJson(logos);
 }
 
+export function jsonAirlineCodes(codes: Record<string, string>): any {
+  return toJson(codes);
+}
+
 export function jsonPriceHistory(history: PriceHistoryEntry[]): any {
   return toJson(history);
 }
