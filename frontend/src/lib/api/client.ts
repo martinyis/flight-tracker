@@ -8,7 +8,7 @@ const prodURL = "https://flight-tracker-production-c0bb.up.railway.app/api";
 const API_URL = "http://10.183.25.195:3000/api";
 
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL: prodURL,
   timeout: 10000,
   headers: { "Content-Type": "application/json" },
 });
