@@ -84,6 +84,15 @@ export const activateTracking = asyncHandler(async (req: AuthRequest, res: Respo
   res.json(result);
 });
 
+export const extendTracking = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const result = await savedSearchService.extendTracking(
+    req.params.id as string,
+    req.userId!,
+    req.body.newTrackingDays
+  );
+  res.json(result);
+});
+
 export const reSearch = asyncHandler(async (req: AuthRequest, res: Response) => {
   const result = await savedSearchService.reSearchExcludingAirlines(
     req.params.id as string,

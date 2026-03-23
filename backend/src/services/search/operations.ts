@@ -65,7 +65,7 @@ export async function paidRefresh(id: string, userId: string, newApiFilters?: Ap
     // Layer 3: merge static fallback dictionary (lowest priority)
     nameToCode = { ...AIRLINE_NAME_TO_CODE, ...nameToCode };
 
-    opsLog.info({ searchId, nameToCode, incomingFilters: newApiFilters }, "paidRefresh: resolving airline names");
+    opsLog.info({ searchId, incomingFilters: newApiFilters }, "paidRefresh: resolving airline names");
     newApiFilters = resolveAirlineNamesInFilters(newApiFilters, nameToCode);
     validateApiFilters(newApiFilters);
   }

@@ -15,6 +15,7 @@ import {
   jsonAvailableAirlines, jsonAirlineLogos, jsonPriceHistory, jsonSentinelPairs,
 } from "../../types/prismaJson";
 import { parseId, validateApiFilters, appendPriceHistory } from "./helpers";
+import { buildTrackingCosts } from "./crud";
 
 // ---------------------------------------------------------------------------
 // Activate tracking (credits-based)
@@ -94,7 +95,74 @@ export async function activateTracking(id: string, userId: string, trackingDays?
     omit: { rawLegs: true },
   });
 
-  return { search: updated, creditsCharged: trackingCreditCost, remainingBalance };
+  const trackingCosts = buildTrackingCosts(search.comboCount ?? 1, search.dateFrom, false);
+  return { search: { ...updated, trackingCosts }, creditsCharged: trackingCreditCost, remainingBalance };
+}
+
+// ---------------------------------------------------------------------------
+// Extend tracking duration (credits-based incremental cost)
+// ---------------------------------------------------------------------------
+
+export async function extendTracking(id: string, userId: string, newTrackingDays: number) {
+  const searchId = parseId(id);
+  const uid = parseId(userId);
+
+  const search = await prisma.savedSearch.findFirst({
+    where: { id: searchId, userId: uid },
+  });
+  if (!search) throw new NotFoundError("Search not found");
+
+  if (!search.trackingActive) {
+    throw new BadRequestError("Tracking is not active. Activate tracking first.");
+  }
+
+  // Validate newTrackingDays
+  if (![14, 30].includes(newTrackingDays) && newTrackingDays !== 0) {
+    throw new BadRequestError("newTrackingDays must be 14, 30, or 0 (until departure)");
+  }
+
+  // Compute effective new days
+  const departure = new Date(search.dateFrom + "T00:00:00Z");
+  const daysUntilDeparture = Math.max(1, Math.ceil((departure.getTime() - Date.now()) / 86_400_000));
+
+  let effectiveNewDays: number;
+  if (newTrackingDays === 0) {
+    effectiveNewDays = daysUntilDeparture;
+  } else {
+    effectiveNewDays = Math.min(newTrackingDays, daysUntilDeparture);
+  }
+
+  const currentDays = search.trackingDays ?? 0;
+  if (effectiveNewDays <= currentDays) {
+    throw new BadRequestError("New tracking duration must be longer than current duration");
+  }
+
+  // Calculate incremental cost
+  const comboCount = search.comboCount ?? 1;
+  const newTotalCost = computeTrackingCredits(comboCount, effectiveNewDays);
+  const alreadyPaid = search.trackingCredits ?? 0;
+  const incrementalCost = Math.max(0, newTotalCost - alreadyPaid);
+
+  // Deduct incremental credits
+  const routeLabel = `Extend tracking ${currentDays}d→${effectiveNewDays}d: ${search.origin}-${search.destination}`;
+  const remainingBalance = incrementalCost > 0
+    ? await deductCredits(uid, incrementalCost, "tracking", search.id, routeLabel)
+    : (await prisma.user.findUniqueOrThrow({ where: { id: uid }, select: { creditBalance: true } })).creditBalance;
+
+  // Update search with new tracking duration
+  const now = new Date();
+  const updated = await prisma.savedSearch.update({
+    where: { id: search.id },
+    data: {
+      trackingDays: effectiveNewDays,
+      trackingCredits: newTotalCost,
+      nextCheckAt: computeNextCheckAt(search.dateFrom, effectiveNewDays, search.trackingStartedAt ?? now),
+    },
+    omit: { rawLegs: true },
+  });
+
+  const trackingCosts = buildTrackingCosts(search.comboCount ?? 1, search.dateFrom, false);
+  return { search: { ...updated, trackingCosts }, creditsCharged: incrementalCost, remainingBalance };
 }
 
 // ---------------------------------------------------------------------------

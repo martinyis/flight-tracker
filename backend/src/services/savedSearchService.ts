@@ -14,5 +14,5 @@ export {
 } from "./search/operations";
 
 export {
-  activateTracking, reSearchExcludingAirlines,
+  activateTracking, extendTracking, reSearchExcludingAirlines,
 } from "./search/tracking";

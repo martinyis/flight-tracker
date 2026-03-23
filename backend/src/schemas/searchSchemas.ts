@@ -84,6 +84,12 @@ export const activateTrackingSchema = {
   }),
 };
 
+export const extendTrackingSchema = {
+  body: z.object({
+    newTrackingDays: z.number().int(),
+  }),
+};
+
 export const hydrateOneSchema = {
   body: z.object({
     optionIndex: z.number({ error: "optionIndex (number) is required" }).int(),

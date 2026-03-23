@@ -140,6 +140,7 @@ function RootLayoutNav() {
         <Stack.Screen name="search/[id]" />
         <Stack.Screen name="activity-preferences" />
         <Stack.Screen name="support-legal" />
+        <Stack.Screen name="tracking-history/[id]" />
       </Stack>
     </>
   );

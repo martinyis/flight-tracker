@@ -4,7 +4,7 @@ import { validate } from "../middleware/validate";
 import {
   createSearchSchema, searchIdParam, bookingUrlSchema,
   updateFiltersSchema, refreshSearchSchema, activateTrackingSchema,
-  hydrateOneSchema, reSearchSchema, paidRefreshSchema,
+  extendTrackingSchema, hydrateOneSchema, reSearchSchema, paidRefreshSchema,
 } from "../schemas/searchSchemas";
 import { serpApiLimiter } from "../middleware/rateLimiter";
 
@@ -21,6 +21,7 @@ router.post("/:id/refresh", serpApiLimiter, validate({ ...searchIdParam, ...refr
 router.post("/:id/paid-refresh", serpApiLimiter, validate({ ...searchIdParam, ...paidRefreshSchema }), ctrl.paidRefresh);
 router.post("/:id/hydrate", serpApiLimiter, validate(searchIdParam), ctrl.hydrateSearch);
 router.post("/:id/activate-tracking", validate({ ...searchIdParam, ...activateTrackingSchema }), ctrl.activateTracking);
+router.post("/:id/extend-tracking", validate({ ...searchIdParam, ...extendTrackingSchema }), ctrl.extendTracking);
 router.post("/:id/hydrate-one", serpApiLimiter, validate({ ...searchIdParam, ...hydrateOneSchema }), ctrl.hydrateOne);
 router.post("/:id/re-search", serpApiLimiter, validate({ ...searchIdParam, ...reSearchSchema }), ctrl.reSearch);
 

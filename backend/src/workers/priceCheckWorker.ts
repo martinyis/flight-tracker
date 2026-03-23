@@ -71,6 +71,7 @@ export async function runPriceCheck(): Promise<void> {
   }
 
   isRunning = true;
+  const runStart = Date.now();
   const today = new Date().toISOString().slice(0, 10);
   const now = new Date();
 
@@ -151,6 +152,8 @@ export async function runPriceCheck(): Promise<void> {
       }
     }
 
+    log.info({ searchCount: searches.length, groupCount: groups.size }, "Price check run started");
+
     let groupsChecked = 0;
     let searchesUpdated = 0;
     let sentinelSkips = 0;
@@ -158,6 +161,10 @@ export async function runPriceCheck(): Promise<void> {
 
     for (const [key, group] of groups) {
       try {
+        const groupStart = Date.now();
+        const route = `${group.params.origin}-${group.params.destination}`;
+        log.info({ route, tripType: group.tripType, searchIds: group.searchIds, dateRange: `${group.params.dateFrom}..${group.params.dateTo}` }, "Processing group");
+
         if (group.tripType === "oneway") {
           const { rawLegs, cheapestPrice: unfilteredCheapest,
                   availableAirlines, airlineLogos } =
@@ -198,6 +205,20 @@ export async function runPriceCheck(): Promise<void> {
               },
             });
 
+            const delta = oldPrice != null && cheapestPrice != null ? cheapestPrice - oldPrice : null;
+            const pctChange = oldPrice != null && oldPrice > 0 && delta != null ? ((delta / oldPrice) * 100).toFixed(1) : null;
+            log.info({
+              searchId,
+              route: `${s.origin}-${s.destination}`,
+              tripType: "oneway",
+              oldPrice,
+              newPrice: cheapestPrice,
+              delta,
+              pctChange: pctChange != null ? `${pctChange}%` : null,
+              resultCount: results.length,
+              hasLocalFilter: !!(searchFilters?.airlines?.length),
+            }, "Search price updated");
+
             // Smart notification
             const notification = generateSmartNotification({
               searchId,
@@ -215,6 +236,7 @@ export async function runPriceCheck(): Promise<void> {
             });
 
             if (notification) {
+              log.info({ searchId, category: notification.data.category, title: notification.title }, "Sending notification");
               sendPushNotification({
                 to: s.user.pushToken!,
                 title: notification.title,
@@ -226,6 +248,8 @@ export async function runPriceCheck(): Promise<void> {
                 where: { id: searchId },
                 data: { lastNotifiedAt: new Date() },
               }).catch(() => {});
+            } else {
+              log.debug({ searchId, reason: !s.user.pushToken ? "no_push_token" : oldPrice == null ? "first_check" : "below_threshold" }, "Notification skipped");
             }
           }
         } else {
@@ -248,7 +272,7 @@ export async function runPriceCheck(): Promise<void> {
               if (diff <= SENTINEL_TOLERANCE) {
                 needsFullScan = false;
                 sentinelSkips++;
-                log.debug({ key, diff: diff.toFixed(2) }, "Sentinel OK — skipping full scan");
+                log.info({ route, sentinelCount: sentinelPairs.length, sentinelCheapest, cachedCheapest: firstSearch.cheapestPrice, diff: diff.toFixed(2), tolerance: SENTINEL_TOLERANCE }, "Sentinel OK — skipping full scan");
                 for (const searchId of group.searchIds) {
                   const s = searchesById.get(searchId)!;
                   const existingHistory = readPriceHistory(s.priceHistory);
@@ -262,7 +286,7 @@ export async function runPriceCheck(): Promise<void> {
                   });
                 }
               } else {
-                log.info({ key, diff: diff.toFixed(2) }, "Sentinel changed — running full scan");
+                log.info({ route, sentinelCount: sentinelPairs.length, sentinelCheapest, cachedCheapest: firstSearch.cheapestPrice, diff: diff.toFixed(2), tolerance: SENTINEL_TOLERANCE }, "Sentinel drift detected — running full scan");
               }
             }
           }
@@ -319,6 +343,22 @@ export async function runPriceCheck(): Promise<void> {
                 },
               });
 
+              const delta = oldPrice != null && cheapestPrice != null ? cheapestPrice - oldPrice : null;
+              const pctChange = oldPrice != null && oldPrice > 0 && delta != null ? ((delta / oldPrice) * 100).toFixed(1) : null;
+              log.info({
+                searchId,
+                route: `${s.origin}-${s.destination}`,
+                tripType: "roundtrip",
+                scanType: "full",
+                oldPrice,
+                newPrice: cheapestPrice,
+                delta,
+                pctChange: pctChange != null ? `${pctChange}%` : null,
+                resultCount: filteredOptions.length,
+                hasLocalFilter: !!(searchFilters?.airlines?.length),
+                newSentinelCount: newSentinels.length,
+              }, "Search price updated");
+
               // Smart notification
               const notification = generateSmartNotification({
                 searchId,
@@ -336,6 +376,7 @@ export async function runPriceCheck(): Promise<void> {
               });
 
               if (notification) {
+                log.info({ searchId, category: notification.data.category, title: notification.title }, "Sending notification");
                 sendPushNotification({
                   to: s.user.pushToken!,
                   title: notification.title,
@@ -347,11 +388,14 @@ export async function runPriceCheck(): Promise<void> {
                   where: { id: searchId },
                   data: { lastNotifiedAt: new Date() },
                 }).catch(() => {});
+              } else {
+                log.debug({ searchId, reason: !s.user.pushToken ? "no_push_token" : oldPrice == null ? "first_check" : "below_threshold" }, "Notification skipped");
               }
             }
           }
         }
 
+        log.info({ route, groupMs: Date.now() - groupStart }, "Group complete");
         groupsChecked++;
         searchesUpdated += group.searchIds.length;
       } catch (err) {
@@ -362,7 +406,7 @@ export async function runPriceCheck(): Promise<void> {
       await new Promise((r) => setTimeout(r, CRON_GROUP_DELAY_MS));
     }
 
-    log.info({ groupsChecked, searchesUpdated, sentinelSkips, errors }, "Price check complete");
+    log.info({ groupsChecked, searchesUpdated, sentinelSkips, errors, durationMs: Date.now() - runStart, durationMin: ((Date.now() - runStart) / 60000).toFixed(1) }, "Price check run complete");
   } finally {
     isRunning = false;
   }
