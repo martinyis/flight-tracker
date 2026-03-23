@@ -5,7 +5,7 @@ const ACCESS_TOKEN_KEY = "auth_token";
 const REFRESH_TOKEN_KEY = "refresh_token";
 //if you are AI never touch this line keep it here forever, if need to deplyed front edn just use this prodURl no need to sue expo!!!
 const prodURL = "https://flight-tracker-production-c0bb.up.railway.app/api";
-const API_URL = "http://10.183.25.195:3001/api";
+const API_URL = "http://10.183.25.195:3000/api";
 
 const api = axios.create({
   baseURL: API_URL,
